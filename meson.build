@@ -1,6 +1,6 @@
 project('bmcweb', 'cpp',
         version : '1.0',
-        meson_version: '>=0.63.0',
+        meson_version: '>=0.57.0',
         default_options: [
             'b_lto_mode=default',
             'b_lto_threads=0',
@@ -285,7 +285,7 @@ else
 endif
 bmcweb_dependencies += nlohmann_json
 
-boost = dependency('boost',version : '>=1.80.0', required : false, include_type: 'system')
+boost = dependency('boost',version : '>=1.79.0', required : false, include_type: 'system')
 if not boost.found()
   boost = subproject('boost', required: true).get_variable('boost_dep')
   boost = boost.as_system('system')
