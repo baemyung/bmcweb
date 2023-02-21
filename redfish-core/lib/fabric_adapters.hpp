@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright OpenBMC Authors
 #pragma once
 
+#include "bmcweb_config.h"
+
 #include "app.hpp"
 #include "dbus_utility.hpp"
 #include "generated/enums/resource.hpp"
@@ -179,6 +181,10 @@ inline void doAdapterGet(
 
     asyncResp->res.jsonValue["Status"]["State"] = resource::State::Enabled;
     asyncResp->res.jsonValue["Status"]["Health"] = resource::Health::OK;
+
+    asyncResp->res.jsonValue["Ports"]["@odata.id"] =
+        boost::urls::format("/redfish/v1/Systems/{}/FabricAdapters/{}/Ports",
+                            systemName, adapterId);
 
     getFabricAdapterLocation(asyncResp, serviceName, fabricAdapterPath);
     getFabricAdapterAsset(asyncResp, serviceName, fabricAdapterPath);
