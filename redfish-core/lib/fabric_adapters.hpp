@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bmcweb_config.h"
+
 #include "app.hpp"
 #include "dbus_utility.hpp"
 #include "query.hpp"
