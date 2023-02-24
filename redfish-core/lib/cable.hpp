@@ -144,7 +144,8 @@ inline void requestRoutesCable(App& app)
             for (const auto& [objectPath, serviceMap] : subtree)
             {
                 sdbusplus::message::object_path path(objectPath);
-                if (path.filename() != cableId)
+                std::string leaf = pcie_util::buildPCIeUniquePath(path);
+                if (leaf != cableId)
                 {
                     continue;
                 }

@@ -55,13 +55,9 @@ static inline void
         pcieDeviceList = nlohmann::json::array();
         for (const std::string& pcieDevicePath : pcieDevicePaths)
         {
-            size_t devStart = pcieDevicePath.rfind('/');
-            if (devStart == std::string::npos)
-            {
-                continue;
-            }
+            std::string devName =
+                pcie_util::buildPCIeUniquePath(pcieDevicePath);
 
-            std::string devName = pcieDevicePath.substr(devStart + 1);
             if (devName.empty())
             {
                 continue;
