@@ -25,11 +25,39 @@ namespace redfish
 static constexpr std::array<std::string_view, 1> fabricPortInterface{
     "xyz.openbmc_project.Inventory.Connector.Port"};
 
+inline void afterGetFabricPortLocation(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const boost::system::error_code& ec, const std::string& value)
+{
+    if (ec)
+    {
+        if (ec.value() != EBADR)
+        {
+            BMCWEB_LOG_ERROR("DBUS response error ", ec.value());
+            messages::internalError(asyncResp->res);
+        }
+        return;
+    }
+    asyncResp->res.jsonValue["Location"]["PartLocation"]["ServiceLabel"] =
+        value;
+}
+
 inline void
-    getFabricPortProperties(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-                            const std::string& systemName,
-                            const std::string& adapterId,
-                            const std::string& portId)
+    getFabricPortLocation(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                          const std::string& portPath,
+                          const std::string& serviceName)
+{
+    sdbusplus::asio::getProperty<std::string>(
+        *crow::connections::systemBus, serviceName, portPath,
+        "xyz.openbmc_project.Inventory.Decorator.LocationCode", "LocationCode",
+        std::bind_front(afterGetFabricPortLocation, asyncResp));
+}
+
+inline void getFabricPortProperties(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& systemName, const std::string& adapterId,
+    const std::string& portId, const std::string& portPath,
+    const std::string& serviceName)
 {
     asyncResp->res.addHeader(
         boost::beast::http::field::link,
@@ -41,6 +69,7 @@ inline void
                             systemName, adapterId, portId);
     asyncResp->res.jsonValue["Id"] = portId;
     asyncResp->res.jsonValue["Name"] = "Fabric Port";
+    getFabricPortLocation(asyncResp, portPath, serviceName);
 }
 
 inline void getFabricPortPaths(
@@ -229,7 +258,7 @@ inline void doHandleFabricPortGet(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& systemName, const std::string& adapterId,
     const std::string& portId, const boost::system::error_code& ec,
-    const std::string& fabricAdapterPath, const std::string& /*unused*/)
+    const std::string& fabricAdapterPath, const std::string& serviceName)
 {
     if (ec)
     {
@@ -384,7 +413,7 @@ inline void doHandleFabricPortCollectionGet(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& systemName, const std::string& adapterId,
     const boost::system::error_code& ec, const std::string& fabricAdapterPath,
-    const std::string& serviceName)
+    const std::string& fabricServiceName)
 {
     if (ec)
     {
@@ -399,7 +428,7 @@ inline void doHandleFabricPortCollectionGet(
         messages::internalError(asyncResp->res);
         return;
     }
-    if (fabricAdapterPath.empty() || serviceName.empty())
+    if (fabricAdapterPath.empty() || fabricServiceName.empty())
     {
         BMCWEB_LOG_WARNING("Adapter not found");
         messages::resourceNotFound(asyncResp->res, "FabricAdapter", adapterId);
