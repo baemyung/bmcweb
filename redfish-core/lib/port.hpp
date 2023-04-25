@@ -2,6 +2,7 @@
 
 #include "app.hpp"
 #include "fabric_adapters.hpp"
+#include "led.hpp"
 #include "query.hpp"
 #include "registries/privilege_registry.hpp"
 
@@ -135,6 +136,7 @@ inline void getPortProperties(const std::shared_ptr<bmcweb::AsyncResp>& aResp,
     getPortLocation(aResp, serviceName, portPath);
     getPortState(aResp, serviceName, portPath);
     getPortHealth(aResp, serviceName, portPath);
+    getLocationIndicatorActive(aResp, portPath);
 }
 
 inline void getValidPortPath(
