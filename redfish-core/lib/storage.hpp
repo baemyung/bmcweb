@@ -360,8 +360,7 @@ inline void getDrivePresent(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, connectionName, path,
         "xyz.openbmc_project.Inventory.Item", "Present",
-        [asyncResp, path](const boost::system::error_code& ec,
-                          const bool isPresent) {
+        [asyncResp, path](const boost::system::error_code& ec, bool isPresent) {
         // this interface isn't necessary, only check it if
         // we get a good return
         if (ec)
@@ -383,7 +382,7 @@ inline void getDriveState(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, connectionName, path,
         "xyz.openbmc_project.State.Drive", "Rebuilding",
-        [asyncResp](const boost::system::error_code& ec, const bool updating) {
+        [asyncResp](const boost::system::error_code& ec, bool updating) {
         // this interface isn't necessary, only check it
         // if we get a good return
         if (ec)

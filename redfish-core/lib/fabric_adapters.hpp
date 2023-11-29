@@ -128,7 +128,7 @@ inline void
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, serviceName, fabricAdapterPath,
         "xyz.openbmc_project.Inventory.Item", "Present",
-        [asyncResp](const boost::system::error_code& ec, const bool present) {
+        [asyncResp](const boost::system::error_code& ec, bool present) {
         if (ec)
         {
             if (ec.value() != EBADR)

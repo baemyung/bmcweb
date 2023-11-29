@@ -40,7 +40,7 @@ inline void
         *crow::connections::systemBus, "xyz.openbmc_project.LED.GroupManager",
         "/xyz/openbmc_project/led/groups/enclosure_identify_blink",
         "xyz.openbmc_project.Led.Group", "Asserted",
-        [asyncResp](const boost::system::error_code& ec, const bool blinking) {
+        [asyncResp](const boost::system::error_code& ec, bool blinking) {
         // Some systems may not have enclosure_identify_blink object so
         // proceed to get enclosure_identify state.
         if (ec == boost::system::errc::invalid_argument)
@@ -170,7 +170,7 @@ inline void getSystemLocationIndicatorActive(
         *crow::connections::systemBus, "xyz.openbmc_project.LED.GroupManager",
         "/xyz/openbmc_project/led/groups/enclosure_identify_blink",
         "xyz.openbmc_project.Led.Group", "Asserted",
-        [asyncResp](const boost::system::error_code& ec, const bool blinking) {
+        [asyncResp](const boost::system::error_code& ec, bool blinking) {
         // Some systems may not have enclosure_identify_blink object so
         // proceed to get enclosure_identify state.
         if (ec == boost::system::errc::invalid_argument)
@@ -193,8 +193,7 @@ inline void getSystemLocationIndicatorActive(
             "xyz.openbmc_project.LED.GroupManager",
             "/xyz/openbmc_project/led/groups/enclosure_identify",
             "xyz.openbmc_project.Led.Group", "Asserted",
-            [asyncResp](const boost::system::error_code& ec2,
-                        const bool ledOn) {
+            [asyncResp](const boost::system::error_code& ec2, bool ledOn) {
             if (ec2 == boost::system::errc::invalid_argument)
             {
                 BMCWEB_LOG_DEBUG(

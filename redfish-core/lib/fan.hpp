@@ -234,7 +234,7 @@ inline void getFanHealth(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, service, fanPath,
         "xyz.openbmc_project.State.Decorator.OperationalStatus", "Functional",
-        [asyncResp](const boost::system::error_code& ec, const bool value) {
+        [asyncResp](const boost::system::error_code& ec, bool value) {
         if (ec)
         {
             if (ec.value() != EBADR)
@@ -259,7 +259,7 @@ inline void getFanState(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, service, fanPath,
         "xyz.openbmc_project.Inventory.Item", "Present",
-        [asyncResp](const boost::system::error_code& ec, const bool value) {
+        [asyncResp](const boost::system::error_code& ec, bool value) {
         if (ec)
         {
             if (ec.value() != EBADR)

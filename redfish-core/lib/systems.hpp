@@ -1140,7 +1140,7 @@ inline void
         "/xyz/openbmc_project/control/host0/boot",
         "xyz.openbmc_project.Object.Enable", "Enabled",
         [asyncResp](const boost::system::error_code& ec,
-                    const bool bootOverrideEnable) {
+                    bool bootOverrideEnable) {
         if (ec)
         {
             if (ec.value() == boost::asio::error::host_unreachable)

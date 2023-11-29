@@ -208,7 +208,7 @@ inline void
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, service, path,
         "xyz.openbmc_project.Inventory.Item", "Present",
-        [asyncResp](const boost::system::error_code& ec, const bool value) {
+        [asyncResp](const boost::system::error_code& ec, bool value) {
         if (ec)
         {
             if (ec.value() != EBADR)
@@ -234,7 +234,7 @@ inline void
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, service, path,
         "xyz.openbmc_project.State.Decorator.OperationalStatus", "Functional",
-        [asyncResp](const boost::system::error_code& ec, const bool value) {
+        [asyncResp](const boost::system::error_code& ec, bool value) {
         if (ec)
         {
             if (ec.value() != EBADR)

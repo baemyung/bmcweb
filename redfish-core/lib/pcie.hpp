@@ -301,7 +301,7 @@ inline void
     sdbusplus::asio::getProperty<bool>(
         *crow::connections::systemBus, service, pcieDevicePath,
         "xyz.openbmc_project.State.Decorator.OperationalStatus", "Functional",
-        [asyncResp](const boost::system::error_code& ec, const bool value) {
+        [asyncResp](const boost::system::error_code& ec, bool value) {
         if (ec)
         {
             if (ec.value() != EBADR)
