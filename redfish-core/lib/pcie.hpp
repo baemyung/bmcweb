@@ -418,7 +418,7 @@ inline void addPCIeDeviceProperties(
 {
     const std::string* generationInUse = nullptr;
     const std::string* generationSupported = nullptr;
-    const size_t* lanesInUse = nullptr;
+    const int64_t * lanesInUse = nullptr;
     const size_t* maxLanes = nullptr;
 
     const bool success = sdbusplus::unpackPropertiesNoThrow(
