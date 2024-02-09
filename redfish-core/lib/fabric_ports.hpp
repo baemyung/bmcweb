@@ -22,12 +22,11 @@
 namespace redfish
 {
 
-inline void getFabricPortProperties(
-    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& systemName, const std::string& adapterId,
-    const std::string& portId, const std::string& /*portPath*/,
-    const std::string& /*serviceName*/
-)
+inline void
+    getFabricPortProperties(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                            const std::string& systemName,
+                            const std::string& adapterId,
+                            const std::string& portId)
 {
     asyncResp->res.addHeader(
         boost::beast::http::field::link,
@@ -62,6 +61,27 @@ inline void getAssociatedPortSubTree(
     });
 }
 
+inline void getAssociatedPortSubTreePaths(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& fabricAdapterPath,
+    const std::function<void(const boost::system::error_code& ec,
+                             const dbus::utility::MapperGetSubTreePathsResponse&
+                                 portSubTreePaths)>&& callback)
+{
+    static constexpr std::array<std::string_view, 1> portInterfaces{
+        "xyz.openbmc_project.Inventory.Connector.Port"};
+
+    dbus::utility::getAssociatedSubTreePaths(
+        fabricAdapterPath + "/connecting",
+        sdbusplus::message::object_path("/xyz/openbmc_project/inventory"), 0,
+        portInterfaces,
+        [asyncResp, callback{std::move(callback)}](
+            const boost::system::error_code& ec,
+            const dbus::utility::MapperGetSubTreePathsResponse& subTreePaths) {
+        callback(ec, subTreePaths);
+    });
+}
+
 inline void afterGetValidFabricPortSubTree(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& fabricAdapterPath,
@@ -88,7 +108,7 @@ inline void afterGetValidFabricPortSubTree(
     });
 }
 
-inline void getValidFabricPortSubTree(
+inline void getValidFabricAdapterPortSubTree(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& systemName, const std::string& adapterId,
     const std::function<void(
@@ -150,7 +170,7 @@ inline void getValidFabricPortPath(
     const std::function<void(const std::string& portPath,
                              const std::string& portServiceName)>&& callback)
 {
-    getValidFabricPortSubTree(
+    getValidFabricAdapterPortSubTree(
         asyncResp, systemName, adapterId,
         [asyncResp, portId, callback{std::move(callback)}](
             const dbus::utility::MapperGetSubTreeResponse& portSubTree) {
@@ -179,8 +199,7 @@ inline void
     }
 
     getValidFabricPortPath(asyncResp, systemName, adapterId, portId,
-                           [asyncResp](const std::string& /*portPath*/,
-                                       const std::string& /*serviceName*/) {
+                           [asyncResp](const std::string&, const std::string&) {
         asyncResp->res.addHeader(
             boost::beast::http::field::link,
             "</redfish/v1/JsonSchemas/Port/Port.json>; rel=describedby");
@@ -206,8 +225,10 @@ inline void
     }
 
     getValidFabricPortPath(asyncResp, systemName, adapterId, portId,
-                           std::bind_front(getFabricPortProperties, asyncResp,
-                                           systemName, adapterId, portId));
+                           [asyncResp, systemName, adapterId,
+                            portId](const std::string&, const std::string&) {
+        getFabricPortProperties(asyncResp, systemName, adapterId, portId);
+    });
 }
 
 inline void doHandleFabricPortCollectionGet(
@@ -278,10 +299,9 @@ inline void handleFarbicPortCollectionHead(
         return;
     }
 
-    getValidFabricPortSubTree(
-        asyncResp, systemName, adapterId,
-        [asyncResp](
-            const dbus::utility::MapperGetSubTreeResponse& /*portSubTree*/) {
+    getValidFabricAdapterPath(
+        adapterId, systemName, asyncResp,
+        [asyncResp](const std::string&, const std::string&) {
         asyncResp->res.addHeader(
             boost::beast::http::field::link,
             "</redfish/v1/JsonSchemas/PortCollection/PortCollection.json>; rel=describedby");
@@ -311,10 +331,10 @@ inline void handleFabricPortCollectionGet(
         return;
     }
 
-    getValidFabricPortSubTree(asyncResp, systemName, adapterId,
-                              std::bind_front(doHandleFabricPortCollectionGet,
-                                              asyncResp, systemName,
-                                              adapterId));
+    getValidFabricAdapterPortSubTree(
+        asyncResp, systemName, adapterId,
+        std::bind_front(doHandleFabricPortCollectionGet, asyncResp, systemName,
+                        adapterId));
 }
 
 inline void requestRoutesFabricPort(App& app)
