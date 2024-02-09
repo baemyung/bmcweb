@@ -12,6 +12,7 @@
 #include <boost/system/error_code.hpp>
 #include <boost/url/format.hpp>
 
+#include <algorithm>
 #include <array>
 #include <functional>
 #include <memory>
@@ -21,6 +22,8 @@
 
 namespace redfish
 {
+static constexpr std::array<std::string_view, 1> fabricPortInterface{
+    "xyz.openbmc_project.Inventory.Connector.Port"};
 
 inline void
     getFabricPortProperties(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
@@ -40,169 +43,84 @@ inline void
     asyncResp->res.jsonValue["Name"] = "Fabric Port";
 }
 
-inline void getAssociatedPortSubTreePaths(
+inline void getFabricPortPaths(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& fabricAdapterPath,
-    const std::function<void(const boost::system::error_code& ec,
-                             const dbus::utility::MapperGetSubTreePathsResponse&
-                                 portSubTreePaths)>&& callback)
+    const std::function<void(const dbus::utility::MapperGetSubTreePathsResponse&
+                                 fabricPortPaths)>&& callback)
 {
-    static constexpr std::array<std::string_view, 1> portInterfaces{
-        "xyz.openbmc_project.Inventory.Connector.Port"};
+    sdbusplus::message::object_path endpointPath{fabricAdapterPath};
+    endpointPath /= "connecting";
 
     dbus::utility::getAssociatedSubTreePaths(
-        fabricAdapterPath + "/connecting",
+        endpointPath,
         sdbusplus::message::object_path("/xyz/openbmc_project/inventory"), 0,
-        portInterfaces,
-        [asyncResp, callback{std::move(callback)}](
+        fabricPortInterface,
+        [asyncResp, callback](
             const boost::system::error_code& ec,
-            const dbus::utility::MapperGetSubTreePathsResponse& subTreePaths) {
-        callback(ec, subTreePaths);
-    });
-}
-
-inline void afterGetValidFabricPortSubTree(
-    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& fabricAdapterPath,
-    const std::function<void(
-        const dbus::utility::MapperGetSubTreeResponse& portSubTree)>&& callback)
-{
-    constexpr std::array<std::string_view, 1> interfaces{
-        "xyz.openbmc_project.Inventory.Connector.Port"};
-
-    dbus::utility::getSubTree(
-        "/xyz/openbmc_project/inventory", 0, interfaces,
-        [asyncResp, fabricAdapterPath, callback{std::move(callback)}](
-            const boost::system::error_code& ec,
-            const dbus::utility::MapperGetSubTreeResponse& portSubTree) {
-#if 0
-        std::shared_ptr<dbus::utility::MapperGetSubTreeResponse>
-            validPortSubTree =
-                std::make_shared<dbus::utility::MapperGetSubTreeResponse>();
-#endif
-        dbus::utility::MapperGetSubTreeResponse validPortSubTree;
-
+            const dbus::utility::MapperGetSubTreePathsResponse& subtreePaths) {
         if (ec)
         {
             if (ec.value() != EBADR)
             {
-                BMCWEB_LOG_ERROR("DBUS response error {}", ec.value());
+                BMCWEB_LOG_ERROR(
+                    "DBUS response error for getAssociatedSubTreePaths {}",
+                    ec.value());
                 messages::internalError(asyncResp->res);
-                return;
             }
-            // caller will handle the case as empty Ports
-            BMCWEB_LOG_DEBUG("Port not found");
-            callback(std::move(validPortSubTree));
             return;
         }
-
-        // associated ports with the given fabric adapter
-        getAssociatedPortSubTreePaths(
-            asyncResp, fabricAdapterPath,
-            [asyncResp, &validPortSubTree, portSubTree,
-             callback{std::move(callback)}](
-                const boost::system::error_code& ec2,
-                const dbus::utility::MapperGetSubTreePathsResponse&
-                    associatedPortPaths) {
-            if (ec2)
-            {
-                if (ec2.value() != EBADR)
-                {
-                    BMCWEB_LOG_ERROR("DBUS response error {}", ec2.value());
-                    messages::internalError(asyncResp->res);
-                    return;
-                }
-                // caller will handle the case as empty Ports
-                BMCWEB_LOG_DEBUG("Port association not found");
-                callback(std::move(validPortSubTree));
-            }
-
-            // Get the ports that associated ports
-            std::set<std::string> connectedPortPaths(
-                associatedPortPaths.begin(), associatedPortPaths.end());
-
-            for (const auto& item : portSubTree)
-            {
-                const std::string& portPath = item.first;
-                if (connectedPortPaths.find(portPath) !=
-                    connectedPortPaths.end())
-                {
-                    validPortSubTree.push_back(item);
-                }
-            }
-
-            callback(std::move(validPortSubTree));
-        });
-    });
-}
-
-inline void getValidFabricPortSubTree(
-    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& systemName, const std::string& adapterId,
-    const std::function<void(
-        const dbus::utility::MapperGetSubTreeResponse& portSubTree)>&& callback)
-{
-    getValidFabricAdapterPath(
-        adapterId, systemName, asyncResp,
-        [asyncResp, callback{std::move(callback)}](
-            const std::string& fabricAdapterPath, const std::string&) {
-        afterGetValidFabricPortSubTree(asyncResp, fabricAdapterPath,
-                                       std::move(callback));
+        callback(subtreePaths);
     });
 }
 
 inline void afterGetValidFabricPortPath(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& portId,
-    const dbus::utility::MapperGetSubTreeResponse& portSubTree,
+    const dbus::utility::MapperGetSubTreePathsResponse& fabricPortPaths,
     const std::function<void(const std::string& portPath,
                              const std::string& portServiceName)>&& callback)
 
 {
     auto portIter = std::ranges::find_if(
-        portSubTree,
-        [&portId](const std::pair<std::string, dbus::utility::MapperServiceMap>&
-                      object) {
-        return sdbusplus::message::object_path(object.first).filename() ==
-               portId;
+        fabricPortPaths, [&portId](const std::string& portPath) {
+        return sdbusplus::message::object_path(portPath).filename() == portId;
     });
-    if (portIter == portSubTree.end())
+    if (portIter == fabricPortPaths.end())
     {
         BMCWEB_LOG_WARNING("Port {} not found", portId);
         messages::resourceNotFound(asyncResp->res, "Port", portId);
         return;
     }
-    if (portIter->first.empty() || portIter->second.empty())
-    {
-        BMCWEB_LOG_ERROR("Fabric Port: mapper error!");
-        messages::internalError(asyncResp->res);
-        return;
-    }
 
-    const std::string& portPath = portIter->first;
-    const std::string& portServiceName = portIter->second.begin()->first;
-    if (portServiceName.empty())
-    {
-        BMCWEB_LOG_ERROR("Fabric Port: mapper error!");
-        messages::internalError(asyncResp->res);
-        return;
-    }
-
-    callback(portPath, portServiceName);
+    const std::string& portPath = *portIter;
+    dbus::utility::getDbusObject(
+        portPath, fabricPortInterface,
+        [portPath, asyncResp,
+         callback](const boost::system::error_code& ec,
+                   const dbus::utility::MapperGetObject& object) {
+        if (ec || object.empty())
+        {
+            BMCWEB_LOG_ERROR("DBUS response error on getDbusObject {}",
+                             ec.value());
+            messages::internalError(asyncResp->res);
+            return;
+        }
+        callback(portPath, object.begin()->first);
+    });
 }
 
 inline void getValidFabricPortPath(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& systemName, const std::string& adapterId,
-    const std::string& portId,
+    const std::string& fabricAdapterPath, const std::string& portId,
     const std::function<void(const std::string& portPath,
                              const std::string& portServiceName)>&& callback)
 {
-    getValidFabricPortSubTree(
-        asyncResp, systemName, adapterId,
-        [asyncResp, portId, callback{std::move(callback)}](
-            const dbus::utility::MapperGetSubTreeResponse& portSubTree) {
-        afterGetValidFabricPortPath(asyncResp, portId, portSubTree,
+    getFabricPortPaths(asyncResp, fabricAdapterPath,
+                       [asyncResp, portId, callback{callback}](
+                           const dbus::utility::MapperGetSubTreePathsResponse&
+                               fabricPortPaths) {
+        afterGetValidFabricPortPath(asyncResp, portId, fabricPortPaths,
                                     std::move(callback));
     });
 }
@@ -226,11 +144,30 @@ inline void
         return;
     }
 
-    getValidFabricPortPath(asyncResp, systemName, adapterId, portId,
-                           [asyncResp](const std::string&, const std::string&) {
-        asyncResp->res.addHeader(
-            boost::beast::http::field::link,
-            "</redfish/v1/JsonSchemas/Port/Port.json>; rel=describedby");
+    getValidFabricAdapterPath(
+        adapterId, systemName, asyncResp,
+        [asyncResp, systemName, portId](const std::string& fabricAdapterPath,
+                                        const std::string&) {
+        getValidFabricPortPath(
+            asyncResp, fabricAdapterPath, portId,
+            [asyncResp](const std::string&, const std::string&) {
+            asyncResp->res.addHeader(
+                boost::beast::http::field::link,
+                "</redfish/v1/JsonSchemas/Port/Port.json>; rel=describedby");
+        });
+    });
+}
+
+inline void doHandleFabricPortGet(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& systemName, const std::string& adapterId,
+    const std::string& portId, const std::string& fabricAdapterPath,
+    const std::string&)
+{
+    getValidFabricPortPath(asyncResp, fabricAdapterPath, portId,
+                           [asyncResp, systemName, adapterId,
+                            portId](const std::string&, const std::string&) {
+        getFabricPortProperties(asyncResp, systemName, adapterId, portId);
     });
 }
 
@@ -252,30 +189,18 @@ inline void
         return;
     }
 
-    getValidFabricPortPath(asyncResp, systemName, adapterId, portId,
-                           [asyncResp, systemName, adapterId,
-                            portId](const std::string&, const std::string&) {
-        getFabricPortProperties(asyncResp, systemName, adapterId, portId);
-    });
+    getValidFabricAdapterPath(adapterId, systemName, asyncResp,
+                              std::bind_front(doHandleFabricPortGet, asyncResp,
+                                              systemName, adapterId, portId));
 }
 
-inline void doHandleFabricPortCollectionGet(
+inline void afterDoHandleFabricPortCollectionGet(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& systemName, const std::string& adapterId,
-    const dbus::utility::MapperGetSubTreeResponse& portSubTree)
+    const dbus::utility::MapperGetSubTreePathsResponse& fabricPortPaths)
 {
-    asyncResp->res.addHeader(
-        boost::beast::http::field::link,
-        "</redfish/v1/JsonSchemas/PortCollection/PortCollection.json>; rel=describedby");
-
-    asyncResp->res.jsonValue["@odata.type"] = "#PortCollection.PortCollection";
-    asyncResp->res.jsonValue["Name"] = "Fabric Port Collection";
-    asyncResp->res.jsonValue["@odata.id"] =
-        boost::urls::format("/redfish/v1/Systems/{}/FabricAdapters/{}/Ports",
-                            systemName, adapterId);
-
     std::vector<std::string> portIdNames;
-    for (const auto& [portPath, serviceMap] : portSubTree)
+    for (const auto& portPath : fabricPortPaths)
     {
         std::string portId =
             sdbusplus::message::object_path(portPath).filename();
@@ -302,6 +227,28 @@ inline void doHandleFabricPortCollectionGet(
 
     asyncResp->res.jsonValue["Members@odata.count"] = members.size();
     asyncResp->res.jsonValue["Members"] = std::move(members);
+}
+
+inline void doHandleFabricPortCollectionGet(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& systemName, const std::string& adapterId,
+    const std::string& fabricAdapterPath, const std::string&)
+{
+    asyncResp->res.addHeader(
+        boost::beast::http::field::link,
+        "</redfish/v1/JsonSchemas/PortCollection/PortCollection.json>; rel=describedby");
+
+    asyncResp->res.jsonValue["@odata.type"] = "#PortCollection.PortCollection";
+    asyncResp->res.jsonValue["Name"] = "Fabric Port Collection";
+    asyncResp->res.jsonValue["@odata.id"] =
+        boost::urls::format("/redfish/v1/Systems/{}/FabricAdapters/{}/Ports",
+                            systemName, adapterId);
+    asyncResp->res.jsonValue["Members"] = nlohmann::json::array();
+    asyncResp->res.jsonValue["Members@odata.count"] = 0;
+
+    getFabricPortPaths(asyncResp, fabricAdapterPath,
+                       std::bind_front(afterDoHandleFabricPortCollectionGet,
+                                       asyncResp, systemName, adapterId));
 }
 
 inline void handleFarbicPortCollectionHead(
@@ -359,26 +306,10 @@ inline void handleFabricPortCollectionGet(
         return;
     }
 
-#if 1
-
-    getValidFabricAdapterPath(
-        adapterId, systemName, asyncResp,
-        [asyncResp, systemName, adapterId](const std::string& fabricAdapterPath,
-                                           const std::string&) {
-        afterGetValidFabricPortSubTree(
-            asyncResp, fabricAdapterPath,
-
-            std::bind_front(doHandleFabricPortCollectionGet, asyncResp,
-                            systemName, adapterId));
-    });
-#else
-
-    getValidFabricPortSubTree(asyncResp, systemName, adapterId,
+    getValidFabricAdapterPath(adapterId, systemName, asyncResp,
                               std::bind_front(doHandleFabricPortCollectionGet,
                                               asyncResp, systemName,
                                               adapterId));
-
-#endif
 }
 
 inline void requestRoutesFabricPort(App& app)
