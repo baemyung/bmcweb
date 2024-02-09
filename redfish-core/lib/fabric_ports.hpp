@@ -331,10 +331,75 @@ inline void handleFabricPortCollectionGet(
         return;
     }
 
+    // DUMP all subtree=================================
+    static constexpr std::array<std::string_view, 3> interfaces{
+        "xyz.openbmc_project.Association",
+         "xyz.openbmc_project.Inventory.Item.FabricAdapter",
+        "xyz.openbmc_project.Inventory.Connector.Port"};
+
+    BMCWEB_LOG_ERROR("TEST DUMP ALL SUBTREE, adapterId={}", adapterId);
+    dbus::utility::getSubTree(
+        "/xyz/openbmc_project/inventory", 0, interfaces,
+        [asyncResp](const boost::system::error_code& ec,
+                      const dbus::utility::MapperGetSubTreeResponse& subtree) {
+           BMCWEB_LOG_ERROR("TEST1: ec={}, subtree.size={}", ec.value(), subtree.size());
+           for(const auto& [path, connNames] : subtree)
+           {
+               BMCWEB_LOG_ERROR("  TEST1: path={}, connSize={}", path, connNames.size());
+               for(const auto& [intf, others] : connNames )
+               {
+                   std::string datastr = "";
+                   for(const auto& tag : others)
+                   { 
+                     datastr += std::format("{}, ", tag);
+                   }
+
+                   BMCWEB_LOG_ERROR("      TEST2: intf={}, others.size={}, datastr={}", intf, others.size(), datastr);
+               }
+           }
+           BMCWEB_LOG_ERROR("TEST DUMP ALL SUBTREE");
+
+       });
+
+     // DUMP ASSOCIATION==================
+    BMCWEB_LOG_ERROR("TEST DUMP ASSOCIATION, adapterId={}", adapterId);
+
+    static constexpr std::array<std::string_view, 1> portInterfaces{
+        "xyz.openbmc_project.Inventory.Connector.Port"};
+
+    dbus::utility::getAssociatedSubTree(
+        std::string( "/connecting" ),
+        sdbusplus::message::object_path("/xyz/openbmc_project/inventory"), 0,
+        portInterfaces,
+        [asyncResp](
+            const boost::system::error_code& ec,
+            const dbus::utility::MapperGetSubTreeResponse& subtree) {
+
+           BMCWEB_LOG_ERROR("TESTX: ec={}, subtree.size={}", ec.value(), subtree.size());
+           for(const auto& [path, connNames] : subtree)
+           {
+               BMCWEB_LOG_ERROR("  TESTY: path={}, connSize={}", path, connNames.size());
+               for(const auto& [intf, others] : connNames )
+               {
+                   std::string datastr = "";
+                   for(const auto& tag : others)
+                   { 
+                     datastr += std::format("{}, ", tag);
+                   }
+
+                   BMCWEB_LOG_ERROR("      TESTX: intf={}, others.size={}, datastr={}", intf, others.size(), datastr);
+               }
+           }
+
+       BMCWEB_LOG_ERROR("TEST DUMP ASSOCIATION");
+    });
+
     getValidFabricAdapterPortSubTree(
         asyncResp, systemName, adapterId,
         std::bind_front(doHandleFabricPortCollectionGet, asyncResp, systemName,
                         adapterId));
+
+
 }
 
 inline void requestRoutesFabricPort(App& app)
