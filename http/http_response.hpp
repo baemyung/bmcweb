@@ -44,6 +44,11 @@ struct Response
 
     void addHeader(http::field key, std::string_view value)
     {
+        if(key == http::field::etag)
+        {
+            fields().erase("Etag");
+         }
+    
         fields().insert(key, value);
     }
 

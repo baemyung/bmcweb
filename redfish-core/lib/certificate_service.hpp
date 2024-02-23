@@ -56,9 +56,11 @@ inline std::string getCertificateFromReqBody(
     const crow::Request& req)
 {
     nlohmann::json reqJson;
+    BMCWEB_LOG_ERROR("TEST: getCertificateFromReqBody Calling parseRequestAsJson");
     JsonParseResult ret = parseRequestAsJson(req, reqJson);
     if (ret != JsonParseResult::Success)
     {
+        BMCWEB_LOG_ERROR("TEST: getCertificateFromReqBody result NOT JSON");
         // We did not receive JSON request, proceed as it is RAW data
         return req.body();
     }

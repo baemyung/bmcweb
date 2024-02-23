@@ -64,6 +64,7 @@ struct UserSession
      */
     static std::shared_ptr<UserSession> fromJson(const nlohmann::json& j)
     {
+        BMCWEB_LOG_ERROR("TEST: session fromJson BEGIN");
         std::shared_ptr<UserSession> userSession =
             std::make_shared<UserSession>();
         for (const auto& element : j.items())
@@ -110,6 +111,7 @@ struct UserSession
                 continue;
             }
         }
+        BMCWEB_LOG_ERROR("TEST: session fromJson END");
         // If any of these fields are missing, we can't restore the session, as
         // we don't have enough information.  These 4 fields have been present
         // in every version of this file in bmcwebs history, so any file, even
@@ -302,6 +304,7 @@ class SessionStore
 
     void removeSession(const std::shared_ptr<UserSession>& session)
     {
+        BMCWEB_LOG_ERROR("TEST: removeSession session {}",  session->sessionToken);
 #ifdef BMCWEB_ENABLE_IBM_MANAGEMENT_CONSOLE
         crow::ibm_mc_lock::Lock::getInstance().releaseLock(session->uniqueId);
 #endif

@@ -40,11 +40,27 @@ inline void
     std::string computedEtag = resIn.computeEtag();
     BMCWEB_LOG_DEBUG("User provided if-match etag {} computed etag {}",
                      ifMatchHeader, computedEtag);
-    if (computedEtag != ifMatchHeader)
+
+     std::string ifmatchEtagOne = ifMatchHeader.substr(0, ifMatchHeader.find(","));
+     BMCWEB_LOG_ERROR(" TEST:X:X:X:X: afterIfMatchRequest Change ifmatch=({} to a single token={}", ifMatchHeader, ifmatchEtagOne);
+
+    if (computedEtag != ifmatchEtagOne)
     {
+        BMCWEB_LOG_ERROR(" TEST: Etag if-match mismatch  computedEtag = {}, {}",
+                         computedEtag, computedEtag.length());
+        BMCWEB_LOG_ERROR(" TEST: Etag if-match mismatch  ifMatchHeader= {}, {}",
+                         ifMatchHeader, ifMatchHeader.length());
+
+        bool chk1 = (computedEtag != ifMatchHeader);
+        bool chk2 = !(computedEtag == ifMatchHeader);
+        BMCWEB_LOG_ERROR(" TEST: chk1={} chk2={}", chk1, chk2);
+
         messages::preconditionFailed(asyncResp->res);
         return;
     }
+
+     BMCWEB_LOG_ERROR(" TEST:X:X:X:X: afterIfMatchRequest MATCH ... Change ifmatch=({} to a single token={}", ifMatchHeader, ifmatchEtagOne);
+
     // Restart the request without if-match
     req.req.erase(boost::beast::http::field::if_match);
     BMCWEB_LOG_DEBUG("Restarting request");
@@ -54,41 +70,50 @@ inline void
 inline bool handleIfMatch(crow::App& app, const crow::Request& req,
                           const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
 {
+    BMCWEB_LOG_ERROR("TEST:handleIfMatch - BEGIN ");
     if (req.session == nullptr)
     {
         // If the user isn't authenticated, don't even attempt to parse match
         // parameters
+        BMCWEB_LOG_ERROR("TEST:handleIfMatch - session is nullptr ");
         return true;
     }
 
     std::string ifMatch{
         req.getHeaderValue(boost::beast::http::field::if_match)};
+
+    BMCWEB_LOG_ERROR(" TEST:handleIfMatch: ifMatch generated=({})", ifMatch);
     if (ifMatch.empty())
     {
         // No If-Match header.  Nothing to do
+        BMCWEB_LOG_ERROR("TEST:handleIfMatch - ifMatch==empty");
         return true;
     }
     if (ifMatch == "*")
     {
         // Representing any resource
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Match
+                BMCWEB_LOG_ERROR("TEST:handleIfMatch - ifMatch==*");
         return true;
     }
     if (req.req.method() != boost::beast::http::verb::patch &&
         req.req.method() != boost::beast::http::verb::post &&
         req.req.method() != boost::beast::http::verb::delete_)
     {
+        BMCWEB_LOG_ERROR(" TEST:handleIfMatch: req.method is NOT patch/post/delete");
         messages::preconditionFailed(asyncResp->res);
         return false;
     }
     boost::system::error_code ec;
 
+    BMCWEB_LOG_ERROR(" TEST:handleIfMatch: try newReq");
     // Try to GET the same resource
     crow::Request newReq(
         {boost::beast::http::verb::get, req.url().encoded_path(), 11}, ec);
 
     if (ec)
     {
+        BMCWEB_LOG_ERROR(" TEST:handleIfMatch: try newReq failed. ec={}", ec.message());
         messages::internalError(asyncResp->res);
         return false;
     }
@@ -127,6 +152,8 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
     std::string_view odataHeader = req.getHeaderValue("OData-Version");
     if (!odataHeader.empty() && odataHeader != "4.0")
     {
+        BMCWEB_LOG_ERROR(" TEST: odataHeader is 4.0, but it is = {}",
+                         odataHeader);
         messages::preconditionFailed(asyncResp->res);
         return false;
     }

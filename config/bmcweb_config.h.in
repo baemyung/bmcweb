@@ -15,7 +15,8 @@ constexpr const char* mesonInstallPrefix = "@MESON_INSTALL_PREFIX@";
 
 constexpr const bool bmcwebInsecureEnableHttpPushStyleEventing = @BMCWEB_INSECURE_ENABLE_HTTP_PUSH_STYLE_EVENTING@ == 1;
 
-constexpr const char* bmcwebLoggingLevel = "@BMCWEB_LOGGING_LEVEL@";
+//constexpr const char* bmcwebLoggingLevel = "@BMCWEB_LOGGING_LEVEL@";
+constexpr const char* bmcwebLoggingLevel = "DEBUG";
 
 constexpr const bool bmcwebEnableHealthPopulate = @BMCWEB_ENABLE_HEALTH_POPULATE@ == 1;
 

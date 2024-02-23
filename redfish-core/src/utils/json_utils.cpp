@@ -31,6 +31,7 @@ namespace json_util
 bool processJsonFromRequest(crow::Response& res, const crow::Request& req,
                             nlohmann::json& reqJson)
 {
+    BMCWEB_LOG_ERROR("TEST: processJsonFromRequest Calling parseRequestAsJson");
     JsonParseResult ret = parseRequestAsJson(req, reqJson);
     if (ret == JsonParseResult::BadContentType)
     {

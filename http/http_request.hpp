@@ -41,10 +41,57 @@ struct Request
         {
             ec = std::make_error_code(std::errc::invalid_argument);
         }
+
+
+        std::string ifmatchEtag;
+        BMCWEB_LOG_ERROR("TEST:A: Request Going thru fields BEGIN");
+        for (const auto& field : req.base())
+        {
+            std::string header;
+            header.reserve(field.name_string().size() + 2 +
+                           field.value().size());
+            header += field.name_string();
+            header += ": ";
+            header += field.value();
+
+            if(field.name_string() == "if-match") {
+                ifmatchEtag = field.value();
+            }
+
+            BMCWEB_LOG_ERROR("    TEST:B: Request  header=({})", header);
+        }
+        BMCWEB_LOG_ERROR("TEST:A: Request Going thru fields END");
+
+        //Change "if-match" to a single element
+#if 0
+        if(!ifmatchEtag.empty())
+        {
+            std::string ifmatchEtagOne = ifmatchEtag.substr(0, ifmatchEtag.find(","));
+            BMCWEB_LOG_ERROR(" TEST: REQUEST Change ifmatch({} to a single token={}", ifmatchEtag, ifmatchEtagOne);
+            req.base().erase("if-match");
+            req.base().insert("if-match", ifmatchEtagOne);
+             BMCWEB_LOG_ERROR(" TEST: REQUEST Verify if-match{}", req.base()["if-match"]);
+        }
+#endif
+        
     }
 
     Request(std::string_view bodyIn, std::error_code& /*ec*/) : req({}, bodyIn)
-    {}
+    {
+     BMCWEB_LOG_ERROR("TEST:A: Request Going thru fields BEGIN");
+        for (const auto& field : req.base())
+        {
+            std::string header;
+            header.reserve(field.name_string().size() + 2 +
+                           field.value().size());
+            header += field.name_string();
+            header += ": ";
+            header += field.value();
+
+            BMCWEB_LOG_ERROR("    TEST:B: Request  header=({})", header);
+        }
+     BMCWEB_LOG_ERROR("TEST:A: Request Going thru fields END");
+    }
 
     Request() = default;
 
@@ -67,6 +114,7 @@ struct Request
 
     void clear()
     {
+        BMCWEB_LOG_ERROR("TEST:0:X:X:X: http_request CLEAR BEGIN");
         req.clear();
         urlBase.clear();
         isSecure = false;
@@ -74,6 +122,7 @@ struct Request
         ipAddress = boost::asio::ip::address();
         session = nullptr;
         userRole = "";
+        BMCWEB_LOG_ERROR("TEST:0: http_request CLEAR END");
     }
 
     boost::beast::http::verb method() const

@@ -60,12 +60,14 @@ struct Payload
                                field_ns::connection, field_ns::content_length,
                                field_ns::upgrade};
 
+        BMCWEB_LOG_ERROR("TEST:A: Payload Calling parseRequestAsJson");
         JsonParseResult ret = parseRequestAsJson(req, jsonBody);
         if (ret != JsonParseResult::Success)
         {
             return;
         }
 
+     BMCWEB_LOG_ERROR("TEST:A: Task.Payload Going thru fields BEGIN");
         for (const auto& field : req.fields())
         {
             if (std::ranges::find(headerWhitelist, field.name()) ==
@@ -79,8 +81,12 @@ struct Payload
             header += field.name_string();
             header += ": ";
             header += field.value();
+
+            BMCWEB_LOG_ERROR("    TEST:B: Task.Payload  header=({})", header);
             httpHeaders.emplace_back(std::move(header));
         }
+
+     BMCWEB_LOG_ERROR("TEST:A: Task.Payload Going thru fields END");
     }
     Payload() = delete;
 

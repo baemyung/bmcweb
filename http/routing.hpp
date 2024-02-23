@@ -601,14 +601,19 @@ class Router
         BMCWEB_LOG_DEBUG("Matched rule (upgrade) '{}' {} / {}", rule.rule,
                          static_cast<uint32_t>(*verb), methods);
 
+        BMCWEB_LOG_ERROR(" TEST:0: handleUpgrade BEFORE validatePrivilege, req.session.valid={}", (req.session != nullptr));
         // TODO(ed) This should be able to use std::bind_front, but it doesn't
         // appear to work with the std::move on adaptor.
         validatePrivilege(
             req, asyncResp, rule,
             [&rule, asyncResp, adaptor(std::forward<Adaptor>(adaptor))](
                 Request& thisReq) mutable {
+            BMCWEB_LOG_ERROR(" TEST:0: handleUpgrade INSIDE/BEFORE validatePrivilege, req.session.valid={}", (thisReq.session != nullptr));
             rule.handleUpgrade(thisReq, asyncResp, std::move(adaptor));
+            BMCWEB_LOG_ERROR(" TEST:0: handleUpgrade INSIDE/AFTER validatePrivilege, req.session.valid={}", (thisReq.session != nullptr));
         });
+
+        BMCWEB_LOG_ERROR(" TEST:0: handleUpgrade AFTER validatePrivilege, req.session.valid={}", (req.session != nullptr));
     }
 
     void handle(Request& req,
@@ -671,13 +676,21 @@ class Router
 
         if (req.session == nullptr)
         {
+            BMCWEB_LOG_ERROR("TEST: After Match Rull req.session == nullptr");
             rule.handle(req, asyncResp, params);
             return;
         }
+
+
+        BMCWEB_LOG_ERROR(" TEST:1: handle() HANDLE -- BEFORE validatePrivilege, req.session.valid={}", (req.session != nullptr));
         validatePrivilege(req, asyncResp, rule,
                           [&rule, asyncResp, params](Request& thisReq) mutable {
+            BMCWEB_LOG_ERROR("TEST: After Match Rule thisReq.sessionValid = {}",
+                             (thisReq.session != nullptr));
             rule.handle(thisReq, asyncResp, params);
         });
+ 
+        BMCWEB_LOG_ERROR(" TEST:1: handl()) AFTER validatePrivilege, req.session.valid={}", (req.session != nullptr));
     }
 
     void debugPrint()

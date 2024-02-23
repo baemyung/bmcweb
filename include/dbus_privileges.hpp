@@ -23,6 +23,7 @@ inline bool
 {
     if (req.session == nullptr)
     {
+        BMCWEB_LOG_ERROR(" TEST populateUserInfo session=nullptr");
         return false;
     }
 
@@ -42,6 +43,8 @@ inline bool
         return false;
     }
 
+    BMCWEB_LOG_ERROR(" TEST populateUserInfo, remoteUser={}", remoteUser);
+
     if (!remoteUser && (!passwordExpired || !userGroups))
     {
         BMCWEB_LOG_ERROR(
@@ -49,7 +52,15 @@ inline bool
         return false;
     }
 
+    BMCWEB_LOG_ERROR(
+        " TEST populateUserInfo SET userRole={}, sessionValid = {}", userRole,
+        (req.session != nullptr));
+
+    BMCWEB_LOG_ERROR(" TEST populateUserInfo SET BEFORE Set UserRole");
     req.session->userRole = userRole;
+    BMCWEB_LOG_ERROR(" TEST populateUserInfo SET AFTER Set UserRole");
+    BMCWEB_LOG_ERROR(" TEST populateUserInfo SET AFTER1 Set UserRole={}", req.session->userRole);
+    BMCWEB_LOG_ERROR(" TEST populateUserInfo SET AFTER2 Set username={}", req.session->username);
     BMCWEB_LOG_DEBUG("userName = {} userRole = {}", req.session->username,
                      userRole);
 
@@ -63,6 +74,8 @@ inline bool
     {
         req.session->userGroups.swap(*userGroups);
     }
+
+    BMCWEB_LOG_ERROR(" TEST populateUserInfo Success");
 
     return true;
 }
@@ -121,6 +134,11 @@ void afterGetUserInfo(Request& req,
         return;
     }
 
+    if (req.session == nullptr)
+    {
+        BMCWEB_LOG_ERROR(" TEST afterGetUserInfo session=nullptr ... continue");
+    }
+
     if (!populateUserInfo(req, userInfoMap))
     {
         BMCWEB_LOG_ERROR("Failed to populate user information");
@@ -146,18 +164,39 @@ void validatePrivilege(Request& req,
 {
     if (req.session == nullptr)
     {
+        BMCWEB_LOG_ERROR(" TEST validatePrivilege session=nullptr");
         return;
     }
     std::string username = req.session->username;
+    BMCWEB_LOG_ERROR(" TEST:1: validatePrivilege BEFORE async username={}, req.session valid={}", username, (req.session != nullptr));
+
+    //  MUST - Review "req" or "&req" capture
+
     crow::connections::systemBus->async_method_call(
-        [&req, asyncResp, &rule, callback(std::forward<CallbackFn>(callback))](
+        //[&req, asyncResp, &rule, callback(std::forward<CallbackFn>(callback))](
+        //[&req, session{req.session}, asyncResp, &rule, callback(std::forward<CallbackFn>(callback))](
+        //[req, asyncResp, &rule, callback(std::forward<CallbackFn>(callback))](
+        [req{std::move(req)}, asyncResp, &rule, callback(std::forward<CallbackFn>(callback))](
             const boost::system::error_code& ec,
             const dbus::utility::DBusPropertiesMap& userInfoMap) mutable {
+        BMCWEB_LOG_ERROR(" TEST:1.1: validatePrivilege INSIDE lambda req.session valid={}", (req.session != nullptr));
+        #if 0
+        if(req.session == nullptr)
+        {
+            BMCWEB_LOG_ERROR("TEST:X:X:X:X:X:X Restore Session");
+            req.session = std::move(session);
+        }
+        else{
+            BMCWEB_LOG_ERROR("TEST:X:X:X:X:X:X KEEP Session");
+        }
+        #endif
         afterGetUserInfo(req, asyncResp, rule,
                          std::forward<CallbackFn>(callback), ec, userInfoMap);
     },
         "xyz.openbmc_project.User.Manager", "/xyz/openbmc_project/user",
         "xyz.openbmc_project.User.Manager", "GetUserInfo", username);
+
+    BMCWEB_LOG_ERROR(" TEST:1: validatePrivilege AFTER async username={}, req.session valid={}", username, (req.session != nullptr));
 }
 
 } // namespace crow

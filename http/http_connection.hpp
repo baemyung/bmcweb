@@ -229,8 +229,8 @@ class Connection :
             completeRequest(res);
             return;
         }
+  BMCWEB_LOG_ERROR("TEST:X:X:X: handle() assign req.Session.valid={}, userSession: userSession.valid={}", (req.session !=nullptr), (userSession!=nullptr));
         req.session = userSession;
-
         // Fetch the client IP address
         readClientIp();
 
@@ -436,6 +436,7 @@ class Connection :
                     ip, res, method, parser->get().base(), mtlsSession);
 
                 bool loggedIn = userSession != nullptr;
+                BMCWEB_LOG_ERROR("TEST:0 - doReadHeaders loggedIn={}", loggedIn);
                 if (!loggedIn)
                 {
                     const boost::optional<uint64_t> contentLength =
@@ -535,6 +536,7 @@ class Connection :
                                               // newly created parser
         buffer.consume(buffer.size());
 
+        BMCWEB_LOG_ERROR(" TEST:X: afterDoWrite. Reset userSession = nullptr");
         userSession = nullptr;
 
         // Destroy the Request via the std::optional
