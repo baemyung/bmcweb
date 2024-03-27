@@ -260,7 +260,7 @@ class HTTP2Connection :
             std::make_shared<bmcweb::AsyncResp>(std::move(it->second.res));
 #ifndef BMCWEB_INSECURE_DISABLE_AUTHX
         thisReq.session = crow::authentication::authenticate(
-            {}, thisRes, thisReq.method(), thisReq.req, nullptr);
+            {}, thisRes, thisReq.method(), thisReq.req(), nullptr);
         if (!crow::authentication::isOnAllowlist(thisReq.url().path(),
                                                  thisReq.method()) &&
             thisReq.session == nullptr)
@@ -292,8 +292,8 @@ class HTTP2Connection :
         if (!thisStream->second.reqReader)
         {
             thisStream->second.reqReader.emplace(
-                thisStream->second.req.req.base(),
-                thisStream->second.req.req.body());
+                thisStream->second.req.req().base(),
+                thisStream->second.req.req().body());
         }
         boost::beast::error_code ec;
         thisStream->second.reqReader->put(boost::asio::const_buffer(data, len),
@@ -428,7 +428,7 @@ class HTTP2Connection :
                 close();
                 return -1;
             }
-            thisReq.req.method(verb);
+            thisReq.req().method(verb);
         }
         else if (nameSv == ":scheme")
         {
@@ -436,7 +436,7 @@ class HTTP2Connection :
         }
         else
         {
-            thisReq.req.set(nameSv, valueSv);
+            thisReq.req().set(nameSv, valueSv);
         }
         return 0;
     }
