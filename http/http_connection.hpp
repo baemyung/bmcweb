@@ -222,7 +222,8 @@ class Connection :
         {
             return;
         }
-        req = crow::Request(parser->release(), reqEc);
+       req  = crow::Request(parser->release(), reqEc);
+
         if (reqEc)
         {
             BMCWEB_LOG_DEBUG("Request failed to construct{}", reqEc.message());
