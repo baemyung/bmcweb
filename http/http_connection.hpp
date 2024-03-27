@@ -342,6 +342,10 @@ class Connection :
         res = std::move(thisRes);
         res.keepAlive(keepAlive);
 
+        BMCWEB_LOG_INFO( "TEST: completeRequest - Response:");
+        std::string bodyStr = req.body();
+        BMCWEB_LOG_INFO( "TEST: completeRequest - Response: {}, body={}, {}, keepalive={}", bodyStr, res.resultInt(), keepAlive);
+
         completeResponseFields(req, res);
         res.addHeader(boost::beast::http::field::date, getCachedDateStr());
 

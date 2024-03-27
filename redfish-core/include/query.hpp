@@ -101,8 +101,21 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
     std::shared_ptr<bmcweb::AsyncResp> getReqAsyncResp =
         std::make_shared<bmcweb::AsyncResp>();
 
+    BMCWEB_LOG_ERROR( "TEST: BEFORE setCompleteRequestHandler, req.body.size={}" , req.body().size());
+    if (std::filesystem::exists("/tmp/waitsome"))
+    {
+        sleep(10);
+    }
+
     getReqAsyncResp->res.setCompleteRequestHandler(std::bind_front(
         afterIfMatchRequest, std::ref(app), asyncResp, req, ifMatch));
+
+    BMCWEB_LOG_ERROR( "TEST: AFTER setCompleteRequestHandler, req.body.size={}" , req.body().size());
+
+   if (std::filesystem::exists("/tmp/waitsome"))
+    {
+        sleep(20);
+    }
 
     app.handle(newReq, getReqAsyncResp);
     return false;
