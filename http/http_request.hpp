@@ -10,6 +10,7 @@
 #include <boost/beast/websocket.hpp>
 #include <boost/url/url.hpp>
 
+#include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -19,7 +20,11 @@ namespace crow
 
 struct Request
 {
+    using http_request_body = boost::beast::http::request<bmcweb::HttpBody>;
+
     boost::beast::http::request<bmcweb::HttpBody> req;
+    std::shared_ptr<boost::beast::http::request<bmcweb::HttpBody>> reqPtr;
+
 
   private:
     boost::urls::url urlBase;
@@ -33,26 +38,71 @@ struct Request
     std::shared_ptr<persistent_data::UserSession> session;
 
     std::string userRole;
-    Request(boost::beast::http::request<bmcweb::HttpBody> reqIn,
-            std::error_code& ec) :
-        req(std::move(reqIn))
+    Request(http_request_body reqIn, std::error_code& ec) :
+   //      reqPtr(std::make_shared<http_request_body>(std::move(reqIn))), req(*reqPtr)
+       req( std::move(reqIn)) , reqPtr(std::make_shared<http_request_body>( req ))
     {
+//reqPtr = std::make_shared<http_request_body>(std::move(reqIn));
+
         if (!setUrlInfo())
         {
             ec = std::make_error_code(std::errc::invalid_argument);
         }
     }
 
-    Request(std::string_view bodyIn, std::error_code& /*ec*/) : req({}, bodyIn)
+#if 1
+#if 1
+    Request(std::string_view bodyIn, std::error_code& /*ec*/) :
+   //reqPtr(std::make_shared<http_request_body>( http_request_body({}, bodyIn) ), req(*reqPtr)
+   req({}, bodyIn) , reqPtr(std::make_shared<http_request_body>( req ))
+    {
+       //req.body( bodyIn );
+      // boost::beast::http::request<bmcweb::HttpBody>  reqBody{{}, bodyIn);
+      // reqPtr = std::make_shared<http_request_body>( reqBody );
+    }
+#else
+    Request(std::string_view bodyIn, std::error_code& /*ec*/) :  
+    reqPtr(std::make_shared<http_request_body>(bmcweb::HttpBody::value_type(bodyIn)), req(*reqPtr)
     {}
+#endif
+#endif
 
+
+#if 0
+    Request() :
+   // reqPtr(std::make_shared<http_request_body>()), req(*reqPtr)
+   req({}) , reqPtr(std::make_shared<http_request_body>( req ))
+    {}
+#else
     Request() = default;
+#endif
+
 
     Request(const Request& other) = default;
     Request(Request&& other) = default;
 
     Request& operator=(const Request&) = default;
-    Request& operator=(Request&&) = default;
+
+#if 0
+    Request& operator=(Request&& other)
+    {
+       reqPtr = std::move(other.reqPtr);
+       req = *reqPtr;
+       return *this;
+    }
+#else
+   Request& operator=(Request&&) = default;
+#endif
+
+#if 0
+    Request& emplace( std::string_view bodyIn, std::error_code& /*ec*/) 
+    {
+       reqPtr = std::make_shared<http_request_body>(bodyIn);
+       req = *reqPtr;
+       return *this;
+    }
+#endif
+
     ~Request() = default;
 
     void addHeader(std::string_view key, std::string_view value)

@@ -222,7 +222,13 @@ class Connection :
         {
             return;
         }
+#if 1
         req = crow::Request(parser->release(), reqEc);
+#else
+        boost::beast::http::request<bmcweb::HttpBody> bodyIn = boost::beast::http::request<bmcweb::HttpBody>(parser->release());
+        req = crow::Request(bodyIn, reqEc);
+#endif
+
         if (reqEc)
         {
             BMCWEB_LOG_DEBUG("Request failed to construct{}", reqEc.message());
