@@ -317,7 +317,7 @@ boost = dependency(
   modules: [
     'url',
     ],
-  version : '>=1.84.0',
+  version : '>=1.83.0',
   required : false,
   include_type: 'system'
 )
