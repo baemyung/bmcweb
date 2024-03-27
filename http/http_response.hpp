@@ -194,6 +194,8 @@ struct Response
         jsonValue = nullptr;
         completed = false;
         expectedHash = std::nullopt;
+
+                BMCWEB_LOG_DEBUG("{} Clearing response containers 222", logPtr(this));
     }
 
     std::string computeEtag() const

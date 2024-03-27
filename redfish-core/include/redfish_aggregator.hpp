@@ -561,6 +561,9 @@ class RedfishAggregator
         }
 
         // Create a copy of thisReq so we we can still locally process the req
+        auto localReq = std::make_shared<crow::Request>(thisReq);
+
+    #if 0
         std::error_code ec;
         auto localReq = std::make_shared<crow::Request>(thisReq.req, ec);
         if (ec)
@@ -572,6 +575,7 @@ class RedfishAggregator
             }
             return;
         }
+    #endif
 
         getSatelliteConfigs(
             std::bind_front(aggregateAndHandle, aggType, localReq, asyncResp));

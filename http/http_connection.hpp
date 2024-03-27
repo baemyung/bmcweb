@@ -531,6 +531,8 @@ class Connection :
 
         BMCWEB_LOG_DEBUG("{} Clearing response", logPtr(this));
         res.clear();
+
+          BMCWEB_LOG_DEBUG("{} Clearing response XXXX", logPtr(this));
         parser.emplace(std::piecewise_construct, std::make_tuple());
         parser->body_limit(httpReqBodyLimit); // reset body limit for
                                               // newly created parser
@@ -540,6 +542,8 @@ class Connection :
 
         // Destroy the Request via the std::optional
         req.clear();
+
+        BMCWEB_LOG_DEBUG("{} Clearing REQ  AFTER", logPtr(this));
         doReadHeaders();
     }
 

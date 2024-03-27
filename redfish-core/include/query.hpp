@@ -14,6 +14,7 @@
 #include <boost/url/params_view.hpp>
 #include <boost/url/url_view.hpp>
 
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <new>
@@ -22,6 +23,9 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+// Use (void) to silence unused warnings.
+#define assertm(exp, msg) assert(((void)msg, exp))
 
 // IWYU pragma: no_forward_declare crow::App
 // IWYU pragma: no_include <boost/url/impl/params_view.hpp>
@@ -54,6 +58,8 @@ inline void
 inline bool handleIfMatch(crow::App& app, const crow::Request& req,
                           const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
 {
+    assertm(req.reqPtr != nullptr, "handleIfMatch");
+
     if (req.session == nullptr)
     {
         // If the user isn't authenticated, don't even attempt to parse match
@@ -83,10 +89,13 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
     }
     boost::system::error_code ec;
 
+    assertm(req.reqPtr != nullptr, "handleIfMatch - before newReq");
+
     // Try to GET the same resource
     crow::Request newReq(
         {boost::beast::http::verb::get, req.url().encoded_path(), 11}, ec);
 
+    assertm(newReq.reqPtr != nullptr, "handleIfMatch - AFTER newReq");
     if (ec)
     {
         messages::internalError(asyncResp->res);
@@ -120,6 +129,11 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
 {
     BMCWEB_LOG_DEBUG("setup redfish route");
 
+    assertm(req.reqPtr != nullptr,
+            "setUpRedfishRouteWithDelegation, req.reqPtr is null");
+
+    BMCWEB_LOG_ERROR("TEST: setUpRedfishRouteWithDelegation step 001");
+
     // Section 7.4 of the redfish spec "Redfish Services shall process the
     // [OData-Version header] in the following table as defined by the HTTP 1.1
     // specification..."
@@ -130,6 +144,7 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
         messages::preconditionFailed(asyncResp->res);
         return false;
     }
+    BMCWEB_LOG_ERROR("TEST: setUpRedfishRouteWithDelegation step 002");
 
     asyncResp->res.addHeader("OData-Version", "4.0");
 
@@ -139,11 +154,15 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
     {
         return false;
     }
-
+    BMCWEB_LOG_ERROR("TEST: setUpRedfishRouteWithDelegation step 003");
+    assertm(req.reqPtr != nullptr, "setUpRedfishRouteWithDelegation");
     if (!handleIfMatch(app, req, asyncResp))
     {
         return false;
     }
+
+    BMCWEB_LOG_ERROR("TEST: setUpRedfishRouteWithDelegation step 004");
+    assertm(req.reqPtr != nullptr, "setUpRedfishRouteWithDelegation");
 
     bool needToCallHandlers = true;
 
