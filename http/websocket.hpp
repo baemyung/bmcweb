@@ -131,7 +131,7 @@ class ConnectionImpl : public Connection
 
         // Make a pointer to keep the req alive while we accept it.
         using Body = boost::beast::http::request<bmcweb::HttpBody>;
-        std::unique_ptr<Body> mobile = std::make_unique<Body>(req.req);
+        std::unique_ptr<Body> mobile = std::make_unique<Body>(req.req());
         Body* ptr = mobile.get();
         // Perform the websocket upgrade
         ws.async_accept(*ptr,
