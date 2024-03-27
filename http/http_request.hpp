@@ -10,6 +10,7 @@
 #include <boost/beast/websocket.hpp>
 #include <boost/url/url.hpp>
 
+#include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -19,7 +20,10 @@ namespace crow
 
 struct Request
 {
-    boost::beast::http::request<bmcweb::HttpBody> req;
+    using http_request_body = boost::beast::http::request<bmcweb::HttpBody>;
+
+    std::shared_ptr<http_request_body> reqPtr;
+    http_request_body& req;
 
   private:
     boost::urls::url urlBase;
@@ -33,9 +37,9 @@ struct Request
     std::shared_ptr<persistent_data::UserSession> session;
 
     std::string userRole;
-    Request(boost::beast::http::request<bmcweb::HttpBody> reqIn,
-            std::error_code& ec) :
-        req(std::move(reqIn))
+    Request(http_request_body&& reqIn, std::error_code& ec) :
+        reqPtr(std::make_shared<http_request_body>(std::move(reqIn))),
+        req(*reqPtr)
     {
         if (!setUrlInfo())
         {
@@ -43,16 +47,57 @@ struct Request
         }
     }
 
-    Request(std::string_view bodyIn, std::error_code& /*ec*/) : req({}, bodyIn)
-    {}
+    Request() :
+        reqPtr(std::make_shared<http_request_body>()),
+        req(*reqPtr)
+    {
+        setUrlInfo();
+    }
 
-    Request() = default;
+    Request(const Request& other) :
+        reqPtr(other.reqPtr), req(*reqPtr), urlBase(other.urlBase),
+        isSecure(other.isSecure), ioService(other.ioService),
+        ipAddress(other.ipAddress), session(other.session),
+        userRole(other.userRole)
+    {
+    }
 
-    Request(const Request& other) = default;
-    Request(Request&& other) = default;
+    Request(Request&& other) :
+        reqPtr{std::move(other.reqPtr)}, req(*reqPtr),
+        urlBase(std::move(other.urlBase)), isSecure(std::move(other.isSecure)),
+        ioService(std::move(other.ioService)),
+        ipAddress(std::move(other.ipAddress)),
+        session(std::move(other.session)), userRole(std::move(other.userRole))
+    {
+    }
 
-    Request& operator=(const Request&) = default;
-    Request& operator=(Request&&) = default;
+
+    Request& operator=(const Request& other)
+    {
+        reqPtr = other.reqPtr;
+        req = *reqPtr;
+        urlBase = other.urlBase;
+        isSecure = other.isSecure;
+        ipAddress = other.ipAddress;
+        session = other.session;
+        userRole = other.userRole;
+        return *this;
+    }
+
+
+    Request& operator=(Request&& other)
+    {
+        reqPtr = std::move(other.reqPtr);
+        req = *reqPtr;
+        urlBase = std::move(other.urlBase);
+        isSecure = std::move(other.isSecure);
+        ioService = std::move(other.ioService);
+        ipAddress = std::move(other.ipAddress);
+        session = std::move(other.session);
+        userRole = std::move(other.userRole);
+        return *this;
+    }
+
     ~Request() = default;
 
     void addHeader(std::string_view key, std::string_view value)
@@ -67,7 +112,8 @@ struct Request
 
     void clear()
     {
-        req.clear();
+        reqPtr = std::make_shared<http_request_body>();
+        req = *reqPtr;
         urlBase.clear();
         isSecure = false;
         ioService = nullptr;
