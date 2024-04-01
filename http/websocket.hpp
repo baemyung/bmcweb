@@ -1,4 +1,5 @@
 #pragma once
+#include "async_req.hpp"
 #include "async_resp.hpp"
 #include "http_body.hpp"
 #include "http_request.hpp"

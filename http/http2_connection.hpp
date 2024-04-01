@@ -1,6 +1,7 @@
 #pragma once
 #include "bmcweb_config.h"
 
+#include "async_req.hpp"
 #include "async_resp.hpp"
 #include "authentication.hpp"
 #include "complete_response_fields.hpp"

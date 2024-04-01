@@ -1,6 +1,7 @@
 #pragma once
 #include "bmcweb_config.h"
 
+#include "async_req.hpp"
 #include "async_resp.hpp"
 #include "authentication.hpp"
 #include "complete_response_fields.hpp"
@@ -222,7 +223,8 @@ class Connection :
         {
             return;
         }
-        req = crow::Request(parser->release(), reqEc);
+
+        asyncReq = std::make_shared<bmcweb::AsyncReq>(crow::Request(parser->release(), reqEc));
         if (reqEc)
         {
             BMCWEB_LOG_DEBUG("Request failed to construct{}", reqEc.message());
@@ -230,15 +232,15 @@ class Connection :
             completeRequest(res);
             return;
         }
-        req.session = userSession;
+        asyncReq->session = userSession;
 
         // Fetch the client IP address
         readClientIp();
 
         // Check for HTTP version 1.1.
-        if (req.version() == 11)
+        if (asyncReq->version() == 11)
         {
-            if (req.getHeaderValue(boost::beast::http::field::host).empty())
+            if (asyncReq->getHeaderValue(boost::beast::http::field::host).empty())
             {
                 res.result(boost::beast::http::status::bad_request);
                 completeRequest(res);
@@ -247,11 +249,11 @@ class Connection :
         }
 
         BMCWEB_LOG_INFO("Request:  {} HTTP/{}.{} {} {} {}", logPtr(this),
-                        req.version() / 10, req.version() % 10,
-                        req.methodString(), req.target(),
-                        req.ipAddress.to_string());
+                        asyncReq->version() / 10, asyncReq->version() % 10,
+                        asyncReq->methodString(), asyncReq->target(),
+                        asyncReq->ipAddress.to_string());
 
-        req.ioService = static_cast<decltype(req.ioService)>(
+        asyncReq->ioService = static_cast<decltype(asyncReq->ioService)>(
             &adaptor.get_executor().context());
 
         if (res.completed)
@@ -259,19 +261,19 @@ class Connection :
             completeRequest(res);
             return;
         }
-        keepAlive = req.keepAlive();
+        keepAlive = asyncReq->keepAlive();
         if constexpr (!std::is_same_v<Adaptor, boost::beast::test::stream>)
         {
 #ifndef BMCWEB_INSECURE_DISABLE_AUTHX
-            if (!crow::authentication::isOnAllowlist(req.url().path(),
-                                                     req.method()) &&
-                req.session == nullptr)
+            if (!crow::authentication::isOnAllowlist(asyncReq->url().path(),
+                                                     asyncReq->method()) &&
+                asyncReq->session == nullptr)
             {
                 BMCWEB_LOG_WARNING("Authentication failed");
                 forward_unauthorized::sendUnauthorized(
-                    req.url().encoded_path(),
-                    req.getHeaderValue("X-Requested-With"),
-                    req.getHeaderValue("Accept"), res);
+                    asyncReq->url().encoded_path(),
+                    asyncReq->getHeaderValue("X-Requested-With"),
+                    asyncReq->getHeaderValue("Accept"), res);
                 completeRequest(res);
                 return;
             }
@@ -284,11 +286,11 @@ class Connection :
             self->completeRequest(thisRes);
         });
         bool isSse =
-            isContentTypeAllowed(req.getHeaderValue("Accept"),
+            isContentTypeAllowed(asyncReq->getHeaderValue("Accept"),
                                  http_helpers::ContentType::EventStream, false);
         std::string_view upgradeType(
-            req.getHeaderValue(boost::beast::http::field::upgrade));
-        if ((req.isUpgrade() &&
+            asyncReq->getHeaderValue(boost::beast::http::field::upgrade));
+        if ((asyncReq->isUpgrade() &&
              bmcweb::asciiIEquals(upgradeType, "websocket")) ||
             isSse)
         {
@@ -306,16 +308,16 @@ class Connection :
                     return;
                 }
             });
-            handler->handleUpgrade(req, asyncResp, std::move(adaptor));
+            handler->handleUpgrade(asyncReq, asyncResp, std::move(adaptor));
             return;
         }
         std::string_view expected =
-            req.getHeaderValue(boost::beast::http::field::if_none_match);
+            asyncReq->getHeaderValue(boost::beast::http::field::if_none_match);
         if (!expected.empty())
         {
             res.setExpectedHash(expected);
         }
-        handler->handle(req, asyncResp);
+        handler->handle(asyncReq, asyncResp);
     }
 
     void close()
@@ -342,7 +344,7 @@ class Connection :
         res = std::move(thisRes);
         res.keepAlive(keepAlive);
 
-        completeResponseFields(req, res);
+        completeResponseFields(asyncReq->req, res);
         res.addHeader(boost::beast::http::field::date, getCachedDateStr());
 
         doWrite();
@@ -360,7 +362,7 @@ class Connection :
         {
             return;
         }
-        req.ipAddress = ip;
+        asyncReq->ipAddress = ip;
     }
 
     boost::system::error_code getClientIp(boost::asio::ip::address& ip)
@@ -539,7 +541,7 @@ class Connection :
         userSession = nullptr;
 
         // Destroy the Request via the std::optional
-        req.clear();
+        asyncReq = nullptr;
         doReadHeaders();
     }
 
@@ -618,7 +620,7 @@ class Connection :
 
     boost::beast::flat_static_buffer<8192> buffer;
 
-    crow::Request req;
+    std::shared_ptr<bmcweb::AsyncReq> asyncReq;
     crow::Response res;
 
     std::shared_ptr<persistent_data::UserSession> userSession;
