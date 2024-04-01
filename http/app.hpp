@@ -1,5 +1,5 @@
 #pragma once
-
+#include "async_req.hpp"
 #include "async_resp.hpp"
 #include "http_request.hpp"
 #include "http_server.hpp"
@@ -50,17 +50,17 @@ class App
     App& operator=(const App&&) = delete;
 
     template <typename Adaptor>
-    void handleUpgrade(Request& req,
+    void handleUpgrade(const std::shared_ptr<bmcweb:AsyncReq>& asyncReq,
                        const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                        Adaptor&& adaptor)
     {
-        router.handleUpgrade(req, asyncResp, std::forward<Adaptor>(adaptor));
+        router.handleUpgrade(asyncReq, asyncResp, std::forward<Adaptor>(adaptor));
     }
 
-    void handle(Request& req,
+    void handle(const std::shared_ptr<bmcweb:AsyncReq>& asyncReq,
                 const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
     {
-        router.handle(req, asyncResp);
+        router.handle(asyncReq, asyncResp);
     }
 
     DynamicRule& routeDynamic(std::string&& rule)

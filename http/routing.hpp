@@ -1,5 +1,6 @@
 #pragma once
 
+#include "async_req.hpp"
 #include "async_resp.hpp"
 #include "common.hpp"
 #include "dbus_privileges.hpp"
@@ -519,11 +520,11 @@ class Router
         return route;
     }
 
-    FindRouteResponse findRoute(Request& req) const
+    FindRouteResponse findRoute(const std::shared_ptr<bmcweb:AsyncReq>& asyncReq,) const
     {
         FindRouteResponse findRoute;
 
-        std::optional<HttpVerb> verb = httpVerbFromBoost(req.method());
+        std::optional<HttpVerb> verb = httpVerbFromBoost(asyncReq->method());
         if (!verb)
         {
             return findRoute;
@@ -536,7 +537,7 @@ class Router
             // Make sure it's safe to deference the array at that index
             static_assert(maxVerbIndex <
                           std::tuple_size_v<decltype(perMethods)>);
-            FindRoute route = findRouteByIndex(req.url().encoded_path(),
+            FindRoute route = findRouteByIndex(asyncReq->url().encoded_path(),
                                                perMethodIndex);
             if (route.rule == nullptr)
             {
@@ -557,11 +558,11 @@ class Router
     }
 
     template <typename Adaptor>
-    void handleUpgrade(Request& req,
+    void handleUpgrade(const std::shared_ptr<bmcweb:AsyncReq>& asyncReq,
                        const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                        Adaptor&& adaptor)
     {
-        std::optional<HttpVerb> verb = httpVerbFromBoost(req.method());
+        std::optional<HttpVerb> verb = httpVerbFromBoost(asyncReq->method());
         if (!verb || static_cast<size_t>(*verb) >= perMethods.size())
         {
             asyncResp->res.result(boost::beast::http::status::not_found);
@@ -572,11 +573,11 @@ class Router
         std::vector<BaseRule*>& rules = perMethod.rules;
 
         const std::pair<unsigned, std::vector<std::string>>& found =
-            trie.find(req.url().encoded_path());
+            trie.find(asyncReq->url().encoded_path());
         unsigned ruleIndex = found.first;
         if (ruleIndex == 0U)
         {
-            BMCWEB_LOG_DEBUG("Cannot match rules {}", req.url().encoded_path());
+            BMCWEB_LOG_DEBUG("Cannot match rules {}", asyncReq->url().encoded_path());
             asyncResp->res.result(boost::beast::http::status::not_found);
             return;
         }
@@ -592,7 +593,7 @@ class Router
         {
             BMCWEB_LOG_DEBUG(
                 "Rule found but method mismatch: {} with {}({}) / {}",
-                req.url().encoded_path(), req.methodString(),
+                asyncReq->url().encoded_path(), asyncReq->methodString(),
                 static_cast<uint32_t>(*verb), methods);
             asyncResp->res.result(boost::beast::http::status::not_found);
             return;
@@ -611,17 +612,17 @@ class Router
         });
     }
 
-    void handle(Request& req,
+    void handle(const std::shared_ptr<bmcweb::AsyncReq>& asyncReq,
                 const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
     {
-        std::optional<HttpVerb> verb = httpVerbFromBoost(req.method());
+        std::optional<HttpVerb> verb = httpVerbFromBoost(asyncReq->method());
         if (!verb || static_cast<size_t>(*verb) >= perMethods.size())
         {
             asyncResp->res.result(boost::beast::http::status::not_found);
             return;
         }
 
-        FindRouteResponse foundRoute = findRoute(req);
+        FindRouteResponse foundRoute = findRoute(asyncReq);
 
         if (foundRoute.route.rule == nullptr)
         {
@@ -629,13 +630,13 @@ class Router
             // route
             if (foundRoute.allowHeader.empty())
             {
-                foundRoute.route = findRouteByIndex(req.url().encoded_path(),
+                foundRoute.route = findRouteByIndex(asyncReq->url().encoded_path(),
                                                     notFoundIndex);
             }
             else
             {
                 // See if we have a method not allowed (405) handler
-                foundRoute.route = findRouteByIndex(req.url().encoded_path(),
+                foundRoute.route = findRouteByIndex(asyncReq->url().encoded_path(),
                                                     methodNotAllowedIndex);
             }
         }
@@ -669,12 +670,12 @@ class Router
         BMCWEB_LOG_DEBUG("Matched rule '{}' {} / {}", rule.rule,
                          static_cast<uint32_t>(*verb), rule.getMethods());
 
-        if (req.session == nullptr)
+        if (asyncReq->session == nullptr)
         {
-            rule.handle(req, asyncResp, params);
+            rule.handle(asyncReq, asyncResp, params);
             return;
         }
-        validatePrivilege(req, asyncResp, rule,
+        validatePrivilege(asyncReq, asyncResp, rule,
                           [&rule, asyncResp, params](Request& thisReq) mutable {
             rule.handle(thisReq, asyncResp, params);
         });
