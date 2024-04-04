@@ -161,15 +161,23 @@ inline void addPCIeSlotProperties(
     std::string generation;
     size_t lanes = 0;
     std::string slotType;
+    std::string linkStatus;
+    std::optional<bool> linkReset;
 
     bool success = sdbusplus::unpackPropertiesNoThrow(
         dbus_utils::UnpackErrorPrinter(), pcieSlotProperties, "Generation",
-        generation, "Lanes", lanes, "SlotType", slotType);
+        generation, "Lanes", lanes, "SlotType", slotType, "LinkStatus",
+        linkStatus, "linkReset", linkReset);
 
     if (!success)
     {
         messages::internalError(res);
         return;
+    }
+
+    BMCWEB_LOG_ERROR("TEST: linkStatus={}", linkStatus);
+    if(linkReset) {
+        BMCWEB_LOG_ERROR("TEST: linkReset = {}", *linkReset);
     }
 
     std::optional<pcie_device::PCIeTypes> pcieType =
@@ -217,6 +225,7 @@ inline void getPCIeDeviceSlotPath(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     std::function<void(const std::string& pcieDeviceSlot)>&& callback)
 {
+#ifdef FIND_SLOT_VIA_ASSOCIATIONS
     std::string associationPath = pcieDevicePath + "/contained_by";
     dbus::utility::getAssociatedSubTreePaths(
         associationPath, sdbusplus::message::object_path(inventoryPath), 0,
@@ -254,6 +263,50 @@ inline void getPCIeDeviceSlotPath(
         }
         callback(endpoints[0]);
     });
+#else
+
+    sdbusplus::message::object_path objpath(pcieDevicePath);
+    std::string pcieSlotPath = objpath.parent_path();
+
+    dbus::utility::getSubTree(
+        "/xyz/openbmc_project/inventory", 0, pcieSlotInterface,
+        [asyncResp, pcieSlotPath, pcieDevicePath,
+         callback{std::move(callback)}](
+            const boost::system::error_code& ec,
+            const dbus::utility::MapperGetSubTreeResponse& subTree) {
+        if (ec)
+        {
+            BMCWEB_LOG_ERROR("DBUS response error on GetSubTree {}",
+                             ec.message());
+            messages::internalError(asyncResp->res);
+            return;
+        }
+        if (subTree.empty())
+        {
+            BMCWEB_LOG_ERROR("Can't find PCIeSlot D-Bus object!");
+            return;
+        }
+        for (const auto& [objectPath, serviceMap] : subTree)
+        {
+            if (objectPath.empty() || serviceMap.size() != 1)
+            {
+                BMCWEB_LOG_ERROR("Error getting PCIeSlot D-Bus object!");
+                messages::internalError(asyncResp->res);
+                return;
+            }
+
+            if (pcieSlotPath != objectPath)
+            {
+                continue;
+            }
+
+            callback(pcieSlotPath);
+            return;
+        }
+        BMCWEB_LOG_ERROR("PCIe Slot not found for {} ", pcieDevicePath);
+    });
+
+#endif
 }
 
 inline void
@@ -417,7 +470,7 @@ inline void addPCIeDeviceProperties(
 {
     const std::string* generationInUse = nullptr;
     const std::string* generationSupported = nullptr;
-    const size_t* lanesInUse = nullptr;
+    const int64_t* lanesInUse = nullptr;
     const size_t* maxLanes = nullptr;
 
     const bool success = sdbusplus::unpackPropertiesNoThrow(
