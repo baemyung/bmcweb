@@ -333,9 +333,9 @@ boost = dependency(
     modules: [
         'url',
     ],
-    version: '>=1.84.0',
-    required: false,
-    include_type: 'system',
+    version : '>=1.83.0',
+    required : false,
+    include_type: 'system'
 )
 if boost.found()
     bmcweb_dependencies += [boost]
