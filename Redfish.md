@@ -799,6 +799,7 @@ other.
 
 - Location
 - Status
+- LocationIndicatorActive
 
 ### /redfish/v1/Systems/system/LogServices/
 
