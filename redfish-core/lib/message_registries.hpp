@@ -77,6 +77,8 @@ inline void handleMessageRoutesMessageRegistryFileGet(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& registry)
 {
+    BMCWEB_LOG_ERROR("TEST: handleMessageRoutesMessageRegistryFileGet {}",
+                     registry);
     if (!redfish::setUpRedfishRoute(app, req, asyncResp))
     {
         return;
@@ -141,6 +143,8 @@ inline void handleMessageRoutesMessageRegistryFileGet(
 
 inline void requestRoutesMessageRegistryFile(App& app)
 {
+    BMCWEB_LOG_ERROR("TEST: requestRoutesMessageRegistryFile");
+
     BMCWEB_ROUTE(app, "/redfish/v1/Registries/<str>/")
         .privileges(redfish::privileges::getMessageRegistryFile)
         .methods(boost::beast::http::verb::get)(std::bind_front(
@@ -153,6 +157,8 @@ inline void handleMessageRegistryGet(
     const std::string& registry, const std::string& registryMatch)
 
 {
+    BMCWEB_LOG_ERROR("TEST: handleMessageRegistryGet {}/{}", registry,
+                     registryMatch);
     if (!redfish::setUpRedfishRoute(app, req, asyncResp))
     {
         return;

@@ -110,4 +110,43 @@ inline void requestRoutesBiosReset(App& app)
             std::bind_front(handleBiosResetPost, std::ref(app)));
 }
 
+inline void requestRoutesBiosAttributeRegistry(App& app)
+{
+    BMCWEB_LOG_ERROR(" TEST: requestRoutesBiosAttributeRegistry TRY");
+
+    BMCWEB_ROUTE(app, "/redfish/v1/Registries/BiosAttributeRegistry/")
+        // .privileges({{"Login"}})
+        .privileges(redfish::privileges::privilegeSetLogin)
+        .methods(boost::beast::http::verb::get)(
+            [&app](const crow::Request& req,
+                   const std::shared_ptr<bmcweb::AsyncResp>& asyncResp) {
+        if (!redfish::setUpRedfishRoute(app, req, asyncResp))
+        {
+            BMCWEB_LOG_ERROR("TEST: BiosAttributeRegistry/setUp FAILED");
+            return;
+        }
+
+        BMCWEB_LOG_ERROR("TEST: BiosAttributeRegistry/ TEST");
+    });
+
+    BMCWEB_ROUTE(
+        app,
+        "/redfish/v1/Registries/BiosAttributeRegistry/BiosAttributeRegistry")
+        // .privileges({{"Login"}})
+        .privileges(redfish::privileges::privilegeSetLogin)
+        .methods(boost::beast::http::verb::get)(
+            [&app](const crow::Request& req,
+                   const std::shared_ptr<bmcweb::AsyncResp>& asyncResp) {
+        if (!redfish::setUpRedfishRoute(app, req, asyncResp))
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST: requestRoutesBiosAttributeRegistry setUp FAILED");
+            return;
+        }
+
+        BMCWEB_LOG_ERROR(
+            "TEST: requestRoutesBiosAttributeRegistry/BiosAttributeRegistry TEST");
+    });
+}
+
 } // namespace redfish

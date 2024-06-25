@@ -114,7 +114,9 @@ class Trie
 
     void optimize()
     {
+#ifdef DO_OPTIMIZE
         optimizeNode(head());
+#endif
     }
 
   public:
@@ -228,6 +230,7 @@ class Trie
   public:
     FindResult find(const std::string_view reqUrl) const
     {
+        BMCWEB_LOG_ERROR("TEST: find, url={}, BEGIN", reqUrl);
         std::vector<std::string> start;
         return findHelper(reqUrl, head(), start);
     }
@@ -295,28 +298,28 @@ class Trie
     }
 
   private:
-    void debugNodePrint(Node& n, size_t level)
+    void debugNodePrint(const Node& n, size_t level) const
     {
         std::string spaces(level, ' ');
         if (n.stringParamChild != 0U)
         {
-            BMCWEB_LOG_DEBUG("{}<str>", spaces);
+            BMCWEB_LOG_ERROR("{}<str>", spaces);
             debugNodePrint(nodes[n.stringParamChild], level + 5);
         }
         if (n.pathParamChild != 0U)
         {
-            BMCWEB_LOG_DEBUG("{} <path>", spaces);
+            BMCWEB_LOG_ERROR("{} <path>", spaces);
             debugNodePrint(nodes[n.pathParamChild], level + 6);
         }
         for (const Node::ChildMap::value_type& kv : n.children)
         {
-            BMCWEB_LOG_DEBUG("{}{}", spaces, kv.first);
+            BMCWEB_LOG_ERROR("{}{}", spaces, kv.first);
             debugNodePrint(nodes[kv.second], level + kv.first.size());
         }
     }
 
   public:
-    void debugPrint()
+    void debugPrint() const
     {
         debugNodePrint(head(), 0U);
     }
@@ -348,6 +351,7 @@ class Router
 
     DynamicRule& newRuleDynamic(const std::string& rule)
     {
+        BMCWEB_LOG_ERROR("TEST: newRuleDynamic = {}", rule);
         std::unique_ptr<DynamicRule> ruleObject =
             std::make_unique<DynamicRule>(rule);
         DynamicRule* ptr = ruleObject.get();
@@ -359,6 +363,7 @@ class Router
     template <uint64_t NumArgs>
     auto& newRuleTagged(const std::string& rule)
     {
+        BMCWEB_LOG_ERROR("TEST: newRuleTagged = {}, NumArgs={}", rule, NumArgs);
         if constexpr (NumArgs == 0)
         {
             using RuleT = TaggedRule<>;
@@ -445,22 +450,31 @@ class Router
             size_t methodBit = 1 << method;
             if ((ruleObject->methodsBitfield & methodBit) > 0U)
             {
+                BMCWEB_LOG_ERROR(
+                    "TEST: internalAddRuleObject perMethod[{}], rule={}, method={}",
+                    method, rule, method);
                 perMethods[method].internalAdd(rule, ruleObject);
             }
         }
 
         if (ruleObject->isNotFound)
         {
+            BMCWEB_LOG_ERROR("TEST: internalAddRuleObject notFoundRoutes = {}",
+                             rule);
             notFoundRoutes.internalAdd(rule, ruleObject);
         }
 
         if (ruleObject->isMethodNotAllowed)
         {
+            BMCWEB_LOG_ERROR(
+                "TEST: internalAddRuleObject isMethodNotAllowed = {}", rule);
             methodNotAllowedRoutes.internalAdd(rule, ruleObject);
         }
 
         if (ruleObject->isUpgrade)
         {
+            BMCWEB_LOG_ERROR("TEST: internalAddRuleObject isUpgrade = {}",
+                             rule);
             upgradeRoutes.internalAdd(rule, ruleObject);
         }
     }
@@ -508,11 +522,28 @@ class Router
         {
             throw std::runtime_error("Trie internal structure corrupted!");
         }
+        BMCWEB_LOG_ERROR("TEST: findRouteByPerMethod url={}, ruleIndex={}", url,
+                         found.ruleIndex);
         // Found a 404 route, switch that in
         if (found.ruleIndex != 0U)
         {
             route.rule = perMethod.rules[found.ruleIndex];
             route.params = std::move(found.params);
+            std::string pstr(route.params.size(), '+');
+            BMCWEB_LOG_ERROR(
+                "TEST: findRouteByPerMethod url={}, ruleIndex={}, FOUND.rule={}, params={}",
+                url, found.ruleIndex, route.rule->rule, pstr);
+            if (perMethod.rules[0] != nullptr)
+            {
+                BMCWEB_LOG_ERROR("  TEST:0: -- Found rules[0]={}",
+                                 perMethod.rules[0]->rule);
+            }
+        }
+        else
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST: findRouteByPerMethod url={}, ruleIndex={}, NOT-FOUND",
+                url, found.ruleIndex);
         }
         return route;
     }
@@ -526,6 +557,9 @@ class Router
         {
             return findRoute;
         }
+        debugPrint();
+        BMCWEB_LOG_ERROR("TEST: findRoute, req={}", req.url().encoded_path());
+
         size_t reqMethodIndex = static_cast<size_t>(*verb);
         // Check to see if this url exists at any verb
         for (size_t perMethodIndex = 0; perMethodIndex <= maxVerbIndex;
@@ -548,6 +582,8 @@ class Router
             findRoute.allowHeader += httpVerbToString(thisVerb);
             if (perMethodIndex == reqMethodIndex)
             {
+                BMCWEB_LOG_ERROR("  TEST:0: findRoute, req={}, FOUND AT {}",
+                                 req.url().encoded_path(), perMethodIndex);
                 findRoute.route = route;
             }
         }
@@ -600,6 +636,8 @@ class Router
             asyncResp->res.result(boost::beast::http::status::not_found);
             return;
         }
+
+        debugPrint();
 
         FindRouteResponse foundRoute = findRoute(*req);
 
@@ -661,11 +699,11 @@ class Router
         });
     }
 
-    void debugPrint()
+    void debugPrint() const
     {
         for (size_t i = 0; i < perMethods.size(); i++)
         {
-            BMCWEB_LOG_DEBUG("{}", httpVerbToString(static_cast<HttpVerb>(i)));
+            BMCWEB_LOG_ERROR("{}", httpVerbToString(static_cast<HttpVerb>(i)));
             perMethods[i].trie.debugPrint();
         }
     }

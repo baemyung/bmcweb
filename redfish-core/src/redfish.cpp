@@ -190,6 +190,8 @@ RedfishService::RedfishService(App& app)
         requestRoutesSystemHostLoggerLogEntry(app);
     }
 
+    requestRoutesBiosAttributeRegistry(app);
+
     requestRoutesMessageRegistryFileCollection(app);
     requestRoutesMessageRegistryFile(app);
     requestRoutesMessageRegistry(app);
