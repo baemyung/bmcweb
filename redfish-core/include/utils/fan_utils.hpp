@@ -18,39 +18,52 @@ constexpr std::array<std::string_view, 1> sensorInterface = {
 
 template <typename Callback>
 inline void
-    getFanSensorsObject(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-                        const std::string& fanPath, Callback&& callback)
+    getFanSensorsObjects(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                         const std::vecor<std::string>& fanPaths,
+                         Callback&& callback)
 {
-    sdbusplus::message::object_path endpointPath{fanPath};
-    endpointPath /= "all_sensors";
+    // accumulate pairs of service & sensorPath
+    std::shared_ptr<std::vector<std::pair<std::string, std::string>>>
+        serviceSensorPaths = std::make_shared<
+            std::vector<std::pair<std::string, std::string>>>();
 
-    dbus::utility::getAssociatedSubTree(
-        endpointPath,
-        sdbusplus::message::object_path("/xyz/openbmc_project/inventory"), 0,
-        sensorInterface,
-        [asyncResp, callback{std::forward<Callback>(callback)}](
-            const boost::system::error_code& ec,
-            const dbus::utility::MapperGetSubTreeResponse& subtree) {
-        if (ec)
-        {
-            if (ec.value() != EBADR)
-            {
-                BMCWEB_LOG_ERROR(
-                    "DBUS response error for getAssociatedSubTree {}",
-                    ec.value());
-                messages::internalError(asyncResp->res);
-            }
-            return;
-        }
+    for (const std::string& fanPath : fanPaths)
+    {
+        sdbusplus::message::object_path endpointPath{fanPath};
+        endpointPath /= "all_sensors";
 
-        for (const auto& [sensorPath, serviceMaps] : subtree)
-        {
-            for (const auto& [service, interfaces] : serviceMaps)
+        dbus::utility::getAssociatedSubTree(
+            endpointPath,
+            sdbusplus::message::object_path("/xyz/openbmc_project/inventory"),
+            0, sensorInterface,
+            [asyncResp, serviceSensorPaths,
+             callback{std::forward<Callback>(callback)}](
+                const boost::system::error_code& ec,
+                const dbus::utility::MapperGetSubTreeResponse& subtree) {
+            if (ec)
             {
-                callback(service, sensorPath);
+                if (ec.value() != EBADR)
+                {
+                    BMCWEB_LOG_ERROR(
+                        "DBUS response error for getAssociatedSubTree {}",
+                        ec.value());
+                    messages::internalError(asyncResp->res);
+                }
+                return;
             }
-        }
-    });
+
+            for (const auto& [sensorPath, serviceMaps] : subtree)
+            {
+                for (const auto& [service, interfaces] : serviceMaps)
+                {
+                    std::pair<std::string, std::string> pair{service,
+                                                             sensorPath};
+                    serviceSensorPaths->emplace_back(pair);
+                }
+            }
+        });
+    }
+    callback(*serviceSensorPaths);
 }
 
 template <typename Callback>
