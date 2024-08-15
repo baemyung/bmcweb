@@ -56,10 +56,6 @@ endif
 # Include Directories
 
 incdir = include_directories('include', 'redfish-core/include', 'redfish-core/lib', 'http')
-incdir_cli = include_directories(
-  'http',
-  'include'
-)
 
 if (get_option('tests').allowed())
     summary('unittest', 'NA', section: 'Features')
@@ -188,7 +184,6 @@ add_project_arguments(
 # Find the dependency modules, if not found use meson wrap to get them
 # automatically during the configure step
 bmcweb_dependencies = []
-bmcweb_cli_dependencies = []
 
 pam = cxx.find_library('pam', required: true)
 atomic = cxx.find_library('atomic', required: true)
@@ -228,16 +223,6 @@ if not sdbusplus.found()
     sdbusplus = sdbusplus.as_system('system')
 endif
 bmcweb_dependencies += sdbusplus
-bmcweb_cli_dependencies += sdbusplus
-
-cli11 = dependency('CLI11', required : false, include_type: 'system')
-if not cli11.found()
-  cli11_proj = subproject('cli11', required: true)
-  cli11 = cli11_proj.get_variable('CLI11_dep')
-  cli11 = cli11.as_system('system')
-endif
-bmcweb_cli_dependencies += cli11
-
 
 tinyxml = dependency(
     'tinyxml2',
@@ -271,8 +256,7 @@ boost = dependency(
     include_type: 'system',
 )
 if boost.found()
-  bmcweb_dependencies += [boost]
-  bmcweb_cli_dependencies += [boost]
+    bmcweb_dependencies += [boost]
 else
     cmake = import('cmake')
     opt = cmake.subproject_options()
@@ -299,7 +283,6 @@ else
     foreach boost_lib : boost_libs
         boost_lib_instance = boost.dependency('boost_' + boost_lib).as_system()
         bmcweb_dependencies += [boost_lib_instance]
-        bmcweb_cli_dependencies += [boost_lib_instance]
     endforeach
 endif
 
@@ -323,8 +306,7 @@ endif
 
 systemd_system_unit_dir = systemd.get_variable('systemdsystemunitdir')
 
-bindir = get_option('prefix') + '/' +get_option('bindir')
-libexec = get_option('prefix') + '/' + get_option('libexecdir')
+bindir = get_option('prefix') + '/' + get_option('bindir')
 
 summary(
     {
@@ -341,7 +323,6 @@ subdir('redfish-core')
 # Config subdirectory
 subdir('config')
 bmcweb_dependencies += conf_h_dep
-bmcweb_cli_dependencies += conf_h_dep
 
 # Source files
 fs = import('fs')
@@ -373,26 +354,16 @@ bmcweblib = static_library(
     dependencies: bmcweb_dependencies,
 )
 
-# Generate the bmcwebd daemon
+# Generate the bmcweb executable
 executable(
-  'bmcwebd',
-  'src/webserver_main.cpp',
-  include_directories : incdir,
-  dependencies: bmcweb_dependencies,
-  link_with: bmcweblib,
-  link_args: '-Wl,--gc-sections',
-  install: true,
-  install_dir:libexec
-)
-
-# Generate the bmcweb CLI application
-executable(
-  'bmcweb',
-  ['src/webserver_cli.cpp','src/boost_asio.cpp'],
-  include_directories : incdir_cli,
-  dependencies: bmcweb_cli_dependencies,
-  install: true,
-  install_dir:bindir
+    'bmcweb',
+    'src/webserver_main.cpp',
+    include_directories: incdir,
+    dependencies: bmcweb_dependencies,
+    link_with: bmcweblib,
+    link_args: '-Wl,--gc-sections',
+    install: true,
+    install_dir: bindir,
 )
 
 srcfiles_unittest = files(
