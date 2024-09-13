@@ -198,7 +198,7 @@ inline void
     }
     std::filesystem::path filepath("/usr/share/www/redfish/v1/JsonSchemas");
     filepath /= schemaFile;
-    if (filepath.is_relative() || !std::filesystem::exists(filepath))
+    if (filepath.is_relative())
     {
         messages::resourceNotFound(asyncResp->res, "JsonSchemaFile", schema);
         return;
@@ -206,6 +206,12 @@ inline void
 
     if (!asyncResp->res.openFile(filepath))
     {
+        if (!std::filesystem::exists(filepath))
+        {
+            messages::resourceNotFound(asyncResp->res, "JsonSchemaFile",
+                                       schema);
+            return;
+        }
         BMCWEB_LOG_DEBUG("failed to read file");
         asyncResp->res.result(
             boost::beast::http::status::internal_server_error);
