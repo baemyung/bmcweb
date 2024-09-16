@@ -64,8 +64,10 @@ inline void createSubscription(crow::sse_socket::Connection& conn,
 
 inline void deleteSubscription(crow::sse_socket::Connection& conn)
 {
+    BMCWEB_LOG_ERROR(" TEST: deleteSubscription start");
     redfish::EventServiceManager::getInstance(&conn.getIoContext())
         .deleteSseSubscription(conn);
+        BMCWEB_LOG_ERROR(" TEST: deleteSubscription end");
 }
 
 inline void requestRoutesEventServiceSse(App& app)

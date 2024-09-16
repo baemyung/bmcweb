@@ -814,6 +814,8 @@ inline void requestRoutesEventDestination(App& app)
                     return;
                 }
 
+                BMCWEB_LOG_ERROR("TEST: DELETE Subscriptions ID/param=({})", param);
+
                 if (param.starts_with("snmp"))
                 {
                     deleteSnmpTrapClient(asyncResp, param);

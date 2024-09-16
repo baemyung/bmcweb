@@ -167,6 +167,9 @@ class ConfigFile
                                 continue;
                             }
 
+                            BMCWEB_LOG_ERROR("TEST: Restored subscription: {} {}",
+                                             newSubscription->id,
+                                             newSubscription->customText);
                             BMCWEB_LOG_DEBUG("Restored subscription: {} {}",
                                              newSubscription->id,
                                              newSubscription->customText);

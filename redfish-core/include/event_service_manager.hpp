@@ -20,7 +20,9 @@ limitations under the License.
 #include "filter_expr_executor.hpp"
 #include "generated/enums/event.hpp"
 #include "generated/enums/log_entry.hpp"
+#include "http_body.hpp"
 #include "http_client.hpp"
+#include "http_response.hpp"
 #include "metric_report.hpp"
 #include "ossl_random.hpp"
 #include "persistent_data.hpp"
@@ -265,6 +267,11 @@ inline int formatEventLogEntry(
 
 } // namespace event_log
 
+// forward definition
+
+static void genericSubscriptionResHandler(const std::string& subId,
+                                          const crow::Response& res);
+
 class Subscription : public persistent_data::UserSubscription
 {
   public:
@@ -277,6 +284,7 @@ class Subscription : public persistent_data::UserSubscription
                  boost::asio::io_context& ioc) :
         policy(std::make_shared<crow::ConnectionPolicy>())
     {
+        BMCWEB_LOG_ERROR("TEST: Subscription CTOR url={}", url);
         destinationUrl = url;
         client.emplace(ioc, policy);
         // Subscription constructor
@@ -289,8 +297,19 @@ class Subscription : public persistent_data::UserSubscription
 
     ~Subscription() = default;
 
+    bool isClientTerminated()
+    {
+        if (client)
+        {
+            return client->isTerminated();
+        }
+        return false;
+    }
+
     bool sendEventToSubscriber(std::string&& msg)
     {
+        BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber, msg=({})", msg);
+
         persistent_data::EventServiceConfig eventServiceConfig =
             persistent_data::EventServiceStore::getInstance()
                 .getEventServiceConfig();
@@ -301,10 +320,20 @@ class Subscription : public persistent_data::UserSubscription
 
         if (client)
         {
-            client->sendData(
+            BMCWEB_LOG_ERROR(
+                "TEST: sendEventToSubscriber, sendData to client BEGIN, id={}, subId={}",
+                id, subId);
+
+            std::function<void(crow::Response&)> cb =
+                std::bind_front(redfish::genericSubscriptionResHandler, subId);
+
+            client->sendDataWithCallback(
                 std::move(msg), destinationUrl,
                 static_cast<ensuressl::VerifyCertificate>(verifyCertificate),
-                httpHeaders, boost::beast::http::verb::post);
+                httpHeaders, boost::beast::http::verb::post, cb);
+
+            BMCWEB_LOG_ERROR(
+                "TEST:TEST: sendEventToSubscriber to client.... END");
             return true;
         }
 
@@ -515,6 +544,7 @@ class Subscription : public persistent_data::UserSubscription
     void setSubscriptionId(const std::string& id2)
     {
         BMCWEB_LOG_DEBUG("Subscription ID: {}", id2);
+        BMCWEB_LOG_ERROR("TEST: Subscription ID: {}", id2);
         subId = id2;
     }
 
@@ -854,6 +884,8 @@ class EventServiceManager
 
     std::shared_ptr<Subscription> getSubscription(const std::string& id)
     {
+        BMCWEB_LOG_ERROR("TEST: getSubscription id=({})", id);
+
         auto obj = subscriptionsMap.find(id);
         if (obj == subscriptionsMap.end())
         {
@@ -895,8 +927,14 @@ class EventServiceManager
             return "";
         }
 
+        BMCWEB_LOG_ERROR(
+            " TEST: addSubscriptionInternal  generate id=({}), destinationUrl={}",
+            id, subValue->destinationUrl);
+
         std::shared_ptr<persistent_data::UserSubscription> newSub =
             std::make_shared<persistent_data::UserSubscription>();
+
+        BMCWEB_LOG_ERROR("TEST: addSubscriptionInternal subsId={}", id);
         newSub->id = id;
         newSub->destinationUrl = subValue->destinationUrl;
         newSub->protocol = subValue->protocol;
@@ -926,6 +964,10 @@ class EventServiceManager
 
         // Set Subscription ID for back trace
         subValue->setSubscriptionId(id);
+
+        BMCWEB_LOG_ERROR(
+            "TEST: addSubscriptionInternal GET Id={}, subValue->subId={}", id,
+            subValue->getSubscriptionId());
 
         return id;
     }
@@ -974,7 +1016,13 @@ class EventServiceManager
     {
         std::string id = addSubscriptionInternal(subValue);
 
+        BMCWEB_LOG_ERROR(" TEST: addPushSubscription  generate id=({})", id);
+
         updateSubscriptionData();
+
+        BMCWEB_LOG_ERROR(" TEST: addPushSubscription  subValue's id={}",
+                         subValue->id);
+
         return id;
     }
 
@@ -986,9 +1034,11 @@ class EventServiceManager
 
     void deleteSubscription(const std::string& id)
     {
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription begin ID={}", id);
         auto obj = subscriptionsMap.find(id);
         if (obj != subscriptionsMap.end())
         {
+            BMCWEB_LOG_ERROR("TEST: deleteSubscription WORKING ID={}", id);
             subscriptionsMap.erase(obj);
             auto obj2 = persistent_data::EventServiceStore::getInstance()
                             .subscriptionsConfigMap.find(id);
@@ -996,7 +1046,9 @@ class EventServiceManager
                 .subscriptionsConfigMap.erase(obj2);
             updateNoOfSubscribersCount();
             updateSubscriptionData();
+            BMCWEB_LOG_ERROR("TEST: deleteSubscription WORKING-DONE ID={}", id);
         }
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription END ID={}", id);
     }
 
     void deleteSseSubscription(const crow::sse_socket::Connection& thisConn)
@@ -1070,6 +1122,7 @@ class EventServiceManager
 
         messages.push_back(Event(std::to_string(eventId), eventMessage));
 
+        BMCWEB_LOG_ERROR("TEST: sendEvent - begin");
         for (auto& it : subscriptionsMap)
         {
             std::shared_ptr<Subscription>& entry = it.second;
@@ -1089,11 +1142,14 @@ class EventServiceManager
             msgJson["Id"] = eventId;
             msgJson["Events"] = std::move(eventRecord);
 
+            BMCWEB_LOG_ERROR("    TEST:  sendEvent[], entry.id={}", entry->id);
+
             std::string strMsg = msgJson.dump(
                 2, ' ', true, nlohmann::json::error_handler_t::replace);
             entry->sendEventToSubscriber(std::move(strMsg));
             eventId++; // increment the eventId
         }
+        BMCWEB_LOG_ERROR("TEST: sendEvent - end");
     }
 
     void resetRedfishFilePosition()
@@ -1426,5 +1482,33 @@ class EventServiceManager
             *crow::connections::systemBus, matchStr, getReadingsForReport);
     }
 };
+
+static void genericSubscriptionResHandler(const std::string& subId,
+                                          const crow::Response& res)
+{
+    BMCWEB_LOG_DEBUG("Response handled with return code: {}", res.resultInt());
+
+    BMCWEB_LOG_ERROR(
+        "TEST: genericSubscriptionResHandler**** subId=({}),  Response handled with return code: {}",
+        subId, res.resultInt());
+
+    std::shared_ptr<Subscription> subValue =
+        EventServiceManager::getInstance().getSubscription(subId);
+    if (subValue != nullptr)
+    {
+        BMCWEB_LOG_ERROR(
+            "TEST: genericSubscriptionResHandler****  subValue is Found,  retryPolicy={}",
+            subValue->retryPolicy);
+
+        if (subValue->retryPolicy == "TerminateAfterRetries" &&
+            subValue->isClientTerminated())
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST: genericSubscriptionResHandler**** TERMINATED...So delete Subscription");
+
+            EventServiceManager::getInstance().deleteSubscription(subId);
+        }
+    }
+}
 
 } // namespace redfish
