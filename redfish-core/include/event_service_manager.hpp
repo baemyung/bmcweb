@@ -50,6 +50,7 @@ limitations under the License.
 #include <ranges>
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace redfish
 {
@@ -251,7 +252,7 @@ inline int formatEventLogEntry(
 
 } // namespace event_log
 
-class Subscription
+class Subscription : std::enable_shared_from_this<Subscription>
 {
   public:
     Subscription(const Subscription&) = delete;
@@ -276,6 +277,35 @@ class Subscription
 
     ~Subscription() = default;
 
+    // callback for subscription sendData
+    void resHandler(const std::shared_ptr<Subscription>& /*unused*/,
+                    const crow::Response& res)
+    {
+        BMCWEB_LOG_DEBUG("Response handled with return code: {}",
+                         res.resultInt());
+
+        if (!client)
+        {
+            BMCWEB_LOG_ERROR(
+                "Http client wasn't filled but http client callback was called.");
+            return;
+        }
+
+        if (userSub.retryPolicy != "TerminateAfterRetries")
+        {
+            return;
+        }
+        if (client->isTerminated())
+        {
+            BMCWEB_LOG_INFO("Subscription {} is deleted after MaxRetryAttempts",
+                            subId);
+            if (deleter)
+            {
+                deleter();
+            }
+        }
+    }
+
     bool sendEventToSubscriber(std::string&& msg)
     {
         persistent_data::EventServiceConfig eventServiceConfig =
@@ -288,11 +318,13 @@ class Subscription
 
         if (client)
         {
-            client->sendData(std::move(msg), userSub.destinationUrl,
-                             static_cast<ensuressl::VerifyCertificate>(
-                                 userSub.verifyCertificate),
-                             userSub.httpHeaders,
-                             boost::beast::http::verb::post);
+            client->sendDataWithCallback(
+                std::move(msg), userSub.destinationUrl,
+                static_cast<ensuressl::VerifyCertificate>(
+                    userSub.verifyCertificate),
+                userSub.httpHeaders, boost::beast::http::verb::post,
+                std::bind_front(&Subscription::resHandler, this,
+                                shared_from_this()));
             return true;
         }
 
@@ -475,6 +507,7 @@ class Subscription
     }
 
     persistent_data::UserSubscription userSub;
+    std::function<void()> deleter;
 
   private:
     std::string subId;
@@ -565,7 +598,7 @@ class EventServiceManager
             std::shared_ptr<Subscription> subValue =
                 std::make_shared<Subscription>(newSub, *url, ioc);
 
-            subscriptionsMap.insert(std::pair(subValue->userSub.id, subValue));
+            subscriptionsMap.emplace(id, subValue);
 
             updateNoOfSubscribersCount();
 
