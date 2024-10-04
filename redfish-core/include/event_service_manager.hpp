@@ -696,6 +696,9 @@ class EventServiceManager
             subValue->protocol = newSub->protocol;
             subValue->verifyCertificate = newSub->verifyCertificate;
             subValue->retryPolicy = newSub->retryPolicy;
+            subValue->sendHeartbeat = newSub->sendHeartbeat;
+            subValue->heartbeatIntervalMinutes =
+                newSub->heartbeatIntervalMinutes;
             subValue->customText = newSub->customText;
             subValue->eventFormatType = newSub->eventFormatType;
             subValue->subscriptionType = newSub->subscriptionType;
@@ -958,6 +961,8 @@ class EventServiceManager
         newSub->destinationUrl = subValue->destinationUrl;
         newSub->protocol = subValue->protocol;
         newSub->retryPolicy = subValue->retryPolicy;
+        newSub->sendHeartbeat = subValue->sendHeartbeat;
+        newSub->heartbeatIntervalMinutes = subValue->heartbeatIntervalMinutes;
         newSub->customText = subValue->customText;
         newSub->eventFormatType = subValue->eventFormatType;
         newSub->subscriptionType = subValue->subscriptionType;
