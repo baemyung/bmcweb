@@ -30,6 +30,7 @@ limitations under the License.
 #include <utils/dbus_utils.hpp>
 
 #include <charconv>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <span>
@@ -295,6 +296,8 @@ inline void requestRoutesEventDestinationCollection(App& app)
             std::optional<std::string> subscriptionType;
             std::optional<std::string> eventFormatType2;
             std::optional<std::string> retryPolicy;
+            std::optional<bool> sendHeartbeat;
+            std::optional<uint16_t> hbIntervalMinutes;
             std::optional<std::vector<std::string>> msgIds;
             std::optional<std::vector<std::string>> regPrefixes;
             std::optional<std::vector<std::string>> originResources;
@@ -308,9 +311,11 @@ inline void requestRoutesEventDestinationCollection(App& app)
                     subscriptionType, "EventFormatType", eventFormatType2,
                     "HttpHeaders", headers, "RegistryPrefixes", regPrefixes,
                     "OriginResources", originResources, "MessageIds", msgIds,
-                    "DeliveryRetryPolicy", retryPolicy,
-                    "MetricReportDefinitions", mrdJsonArray, "ResourceTypes",
-                    resTypes, "VerifyCertificate", verifyCertificate))
+                    "DeliveryRetryPolicy", retryPolicy, "SendHeartbeat",
+                    sendHeartbeat, "HeartbeatIntervalMinutes",
+                    hbIntervalMinutes, "MetricReportDefinitions", mrdJsonArray,
+                    "ResourceTypes", resTypes, "VerifyCertificate",
+                    verifyCertificate))
             {
                 return;
             }
@@ -379,6 +384,16 @@ inline void requestRoutesEventDestinationCollection(App& app)
                     messages::propertyValueConflict(asyncResp->res,
                                                     "RetryPolicy", "Protocol");
                     return;
+                }
+                if (sendHeartbeat)
+                {
+                    messages::propertyValueConflict(
+                        asyncResp->res, "SendHeartbeat", "Protocol");
+                }
+                if (hbIntervalMinutes)
+                {
+                    messages::propertyValueConflict(
+                        asyncResp->res, "HeartbeatIntervalMinutes", "Protocol");
                 }
                 if (msgIds)
                 {
@@ -622,6 +637,24 @@ inline void requestRoutesEventDestinationCollection(App& app)
                 // Default "TerminateAfterRetries"
                 subValue->retryPolicy = "TerminateAfterRetries";
             }
+            if (sendHeartbeat)
+            {
+                subValue->sendHeartbeat = *sendHeartbeat;
+            }
+            if (hbIntervalMinutes)
+            {
+                if (*hbIntervalMinutes < 1 ||
+                    *hbIntervalMinutes > std::numeric_limits<uint16_t>::max())
+                {
+                    messages::queryParameterOutOfRange(
+                        asyncResp->res, std::to_string(*hbIntervalMinutes),
+                        "HeartbeatIntervalMinutes", "[1-65535]");
+                }
+                else
+                {
+                    subValue->hbIntervalMinutes = *hbIntervalMinutes;
+                }
+            }
 
             if (mrdJsonArray)
             {
@@ -709,6 +742,13 @@ inline void requestRoutesEventDestination(App& app)
                     subValue->registryMsgIds;
                 asyncResp->res.jsonValue["DeliveryRetryPolicy"] =
                     subValue->retryPolicy;
+                if (subValue->sendHeartbeat)
+                {
+                    asyncResp->res.jsonValue["SendHeartbeat"] =
+                        subValue->sendHeartbeat;
+                    asyncResp->res.jsonValue["HeartbeatIntervalMinutes"] =
+                        subValue->hbIntervalMinutes;
+                }
                 asyncResp->res.jsonValue["VerifyCertificate"] =
                     subValue->verifyCertificate;
 
@@ -747,14 +787,17 @@ inline void requestRoutesEventDestination(App& app)
 
                 std::optional<std::string> context;
                 std::optional<std::string> retryPolicy;
+                std::optional<bool> sendHeartbeat;
+                std::optional<uint16_t> hbIntervalMinutes;
                 std::optional<bool> verifyCertificate;
                 std::optional<std::vector<nlohmann::json::object_t>> headers;
 
                 if (!json_util::readJsonPatch(
                         req, asyncResp->res, "Context", context,
                         "VerifyCertificate", verifyCertificate,
-                        "DeliveryRetryPolicy", retryPolicy, "HttpHeaders",
-                        headers))
+                        "DeliveryRetryPolicy", retryPolicy, "SendHeartbeat",
+                        sendHeartbeat, "HeartbeatIntervalMinutes",
+                        hbIntervalMinutes, "HttpHeaders", headers))
                 {
                     return;
                 }
@@ -800,6 +843,26 @@ inline void requestRoutesEventDestination(App& app)
                     subValue->retryPolicy = *retryPolicy;
                 }
 
+                if (sendHeartbeat)
+                {
+                    subValue->sendHeartbeat = *sendHeartbeat;
+                }
+                if (hbIntervalMinutes)
+                {
+                    if (*hbIntervalMinutes < 1 ||
+                        *hbIntervalMinutes >
+                            std::numeric_limits<uint16_t>::max())
+                    {
+                        messages::queryParameterOutOfRange(
+                            asyncResp->res, std::to_string(*hbIntervalMinutes),
+                            "HeartbeatIntervalMinutes", "[1-65535]");
+                    }
+                    else
+                    {
+                        subValue->hbIntervalMinutes = *hbIntervalMinutes;
+                    }
+                }
+
                 if (verifyCertificate)
                 {
                     subValue->verifyCertificate = *verifyCertificate;
@@ -814,6 +877,8 @@ inline void requestRoutesEventDestination(App& app)
                     userSub->customText = subValue->customText;
                     userSub->httpHeaders = subValue->httpHeaders;
                     userSub->retryPolicy = subValue->retryPolicy;
+                    userSub->sendHeartbeat = subValue->sendHeartbeat;
+                    userSub->hbIntervalMinutes = subValue->hbIntervalMinutes;
                     userSub->verifyCertificate = subValue->verifyCertificate;
                 }
 
