@@ -17,6 +17,8 @@ struct UserSubscription
     std::string protocol;
     bool verifyCertificate = true;
     std::string retryPolicy;
+    bool sendHeartbeat = false;
+    uint32_t heartbeatIntervalMinutes = 0;
     std::string customText;
     std::string eventFormatType;
     std::string subscriptionType;
@@ -88,6 +90,27 @@ struct UserSubscription
                     continue;
                 }
                 subvalue->retryPolicy = *value;
+            }
+            else if (element.first == "SendHeartbeat")
+            {
+                const bool* value = element.second.get_ptr<const bool*>();
+                if (value == nullptr)
+                {
+                    continue;
+                }
+                subvalue->sendHeartbeat = *value;
+            }
+            else if (element.first == "HeartbeatIntervalMinutes")
+            {
+                const uint64_t* value =
+                    element.second.get_ptr<const uint64_t*>();
+                if ((value == nullptr) ||
+                    (*value > std::numeric_limits<uint32_t>::max()))
+                {
+                    continue;
+                }
+                subvalue->heartbeatIntervalMinutes =
+                    static_cast<uint32_t>(*value);
             }
             else if (element.first == "Context")
             {
@@ -241,6 +264,24 @@ struct UserSubscription
                     "Got unexpected property reading persistent file: {}",
                     element.first);
                 continue;
+            }
+        }
+
+        if (subvalue->sendHeartbeat)
+        {
+            if (subvalue->subscriptionType == "SSE")
+            {
+                BMCWEB_LOG_ERROR(
+                    "SubscriptionType {} does not support SendHeartbeat, refusing to restore",
+                    subvalue->subscriptionType);
+                return nullptr;
+            }
+            if (subvalue->heartbeatIntervalMinutes == 0)
+            {
+                BMCWEB_LOG_ERROR(
+                    "Subscription SendHeartbeat is enabled but HeartbeatIntervalMinutes is not set, refusing to restore",
+                    subvalue->subscriptionType);
+                return nullptr;
             }
         }
 
