@@ -363,9 +363,14 @@ inline void
     const std::string* subModel = nullptr;
 
     const bool success = sdbusplus::unpackPropertiesNoThrow(
-        dbus_utils::UnpackErrorPrinter(), propertiesList, "PartNumber",
-        partNumber, "SerialNumber", serialNumber, "Manufacturer", manufacturer,
-        "Model", model, "SubModel", subModel);
+        dbus_utils::UnpackErrorPrinter(), propertiesList, \
+         "PartNumber",
+        partNumber,\
+         "SerialNumber", 
+          serialNumber, \
+           "Manufacturer", manufacturer,\
+        "Model", model, \
+        "SubModel", subModel);
 
     if (!success)
     {
