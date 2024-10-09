@@ -167,6 +167,7 @@ inline void requestRoutesEventService(App& app)
                     }
                 }
 
+                BMCWEB_LOG_ERROR("TEST: patchEventService");
                 EventServiceManager::getInstance().setEventServiceConfig(
                     eventServiceConfig);
             });
@@ -765,108 +766,156 @@ inline void requestRoutesEventDestination(App& app)
         // https://github.com/openbmc/bmcweb/issues/220
         //.privileges(redfish::privileges::patchEventDestination)
         .privileges({{"ConfigureManager"}})
-        .methods(boost::beast::http::verb::patch)(
-            [&app](const crow::Request& req,
-                   const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-                   const std::string& param) {
-                if (!redfish::setUpRedfishRoute(app, req, asyncResp))
-                {
-                    return;
-                }
-                std::shared_ptr<Subscription> subValue =
-                    EventServiceManager::getInstance().getSubscription(param);
-                if (subValue == nullptr)
-                {
-                    asyncResp->res.result(
-                        boost::beast::http::status::not_found);
-                    return;
-                }
+        .methods(
+            boost::beast::http::verb::
+                patch)([&app](
+                           const crow::Request& req,
+                           const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                           const std::string& param) {
+            if (!redfish::setUpRedfishRoute(app, req, asyncResp))
+            {
+                return;
+            }
+            std::shared_ptr<Subscription> subValue =
+                EventServiceManager::getInstance().getSubscription(param);
+            if (subValue == nullptr)
+            {
+                asyncResp->res.result(boost::beast::http::status::not_found);
+                return;
+            }
 
-                std::optional<std::string> context;
-                std::optional<std::string> retryPolicy;
-                std::optional<bool> sendHeartbeat;
-                std::optional<uint32_t> heartbeatIntervalMinutes;
-                std::optional<bool> verifyCertificate;
-                std::optional<std::vector<nlohmann::json::object_t>> headers;
+            BMCWEB_LOG_ERROR("TEST: PATCH patchEventDestion ID={}, param={} found", subValue->id, param);
 
-                if (!json_util::readJsonPatch(
-                        req, asyncResp->res, "Context", context,
-                        "VerifyCertificate", verifyCertificate,
-                        "DeliveryRetryPolicy", retryPolicy, "SendHeartbeat",
-                        sendHeartbeat, "HeartbeatIntervalMinutes",
-                        heartbeatIntervalMinutes, "HttpHeaders", headers))
-                {
-                    return;
-                }
+            std::optional<std::string> context;
+            std::optional<std::string> retryPolicy;
+            std::optional<bool> sendHeartbeat;
+            std::optional<uint32_t> heartbeatIntervalMinutes;
+            std::optional<bool> verifyCertificate;
+            std::optional<std::vector<nlohmann::json::object_t>> headers;
 
-                if (context)
-                {
-                    subValue->customText = *context;
-                }
+            if (!json_util::readJsonPatch(
+                    req, asyncResp->res, "Context", context,
+                    "VerifyCertificate", verifyCertificate,
+                    "DeliveryRetryPolicy", retryPolicy, "SendHeartbeat",
+                    sendHeartbeat, "HeartbeatIntervalMinutes",
+                    heartbeatIntervalMinutes, "HttpHeaders", headers))
+            {
+                return;
+            }
 
-                if (headers)
+            if (context)
+            {
+                subValue->customText = *context;
+            }
+
+            if (headers)
+            {
+                boost::beast::http::fields fields;
+                for (const nlohmann::json::object_t& headerChunk : *headers)
                 {
-                    boost::beast::http::fields fields;
-                    for (const nlohmann::json::object_t& headerChunk : *headers)
+                    for (const auto& it : headerChunk)
                     {
-                        for (const auto& it : headerChunk)
+                        const std::string* value =
+                            it.second.get_ptr<const std::string*>();
+                        if (value == nullptr)
                         {
-                            const std::string* value =
-                                it.second.get_ptr<const std::string*>();
-                            if (value == nullptr)
-                            {
-                                messages::propertyValueFormatError(
-                                    asyncResp->res, it.second,
-                                    "HttpHeaders/" + it.first);
-                                return;
-                            }
-                            fields.set(it.first, *value);
+                            messages::propertyValueFormatError(
+                                asyncResp->res, it.second,
+                                "HttpHeaders/" + it.first);
+                            return;
                         }
-                    }
-                    subValue->httpHeaders = std::move(fields);
-                }
-
-                if (retryPolicy)
-                {
-                    if (std::ranges::find(supportedRetryPolicies,
-                                          *retryPolicy) ==
-                        supportedRetryPolicies.end())
-                    {
-                        messages::propertyValueNotInList(asyncResp->res,
-                                                         *retryPolicy,
-                                                         "DeliveryRetryPolicy");
-                        return;
-                    }
-                    subValue->retryPolicy = *retryPolicy;
-                }
-
-                if (sendHeartbeat)
-                {
-                    subValue->sendHeartbeat = *sendHeartbeat;
-                }
-                if (heartbeatIntervalMinutes)
-                {
-                    if (*heartbeatIntervalMinutes < 1)
-                    {
-                        messages::queryParameterOutOfRange(
-                            asyncResp->res,
-                            std::to_string(*heartbeatIntervalMinutes),
-                            "HeartbeatIntervalMinutes", "[1-65535]");
-                    }
-                    else
-                    {
-                        subValue->heartbeatIntervalMinutes =
-                            *heartbeatIntervalMinutes;
+                        fields.set(it.first, *value);
                     }
                 }
+                subValue->httpHeaders = std::move(fields);
+            }
 
-                if (verifyCertificate)
+            if (retryPolicy)
+            {
+                if (std::ranges::find(supportedRetryPolicies, *retryPolicy) ==
+                    supportedRetryPolicies.end())
                 {
-                    subValue->verifyCertificate = *verifyCertificate;
+                    messages::propertyValueNotInList(
+                        asyncResp->res, *retryPolicy, "DeliveryRetryPolicy");
+                    return;
                 }
+                subValue->retryPolicy = *retryPolicy;
+            }
 
-                EventServiceManager::getInstance().updateSubscriptionData();
-            });
+            if (sendHeartbeat)
+            {
+                subValue->sendHeartbeat = *sendHeartbeat;
+            }
+            if (heartbeatIntervalMinutes)
+            {
+                if (*heartbeatIntervalMinutes < 1)
+                {
+                    messages::queryParameterOutOfRange(
+                        asyncResp->res,
+                        std::to_string(*heartbeatIntervalMinutes),
+                        "HeartbeatIntervalMinutes", "[1-65535]");
+                }
+                else
+                {
+                    subValue->heartbeatIntervalMinutes =
+                        *heartbeatIntervalMinutes;
+                }
+            }
+
+            if (verifyCertificate)
+            {
+                subValue->verifyCertificate = *verifyCertificate;
+            }
+
+            BMCWEB_LOG_ERROR(
+                "TEST: Subscriptions PATCH, sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
+                subValue->sendHeartbeat, subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
+
+#if 0
+auto obj = subscriptionsMap.find(subValue->id);
+        if (obj != subscriptionsMap.end())
+        {
+            auto obj2 = persistent_data::EventServiceStore::getInstance().subscriptionsConfigMap.find(subValue->id);
+            if(obj2 != ersistent_data::EventServiceStore::getInstance().subscriptionsConfigMap.end())
+            {
+                auto sub2 = obj2->second;
+    BMCWEB_LOG_ERROR("TEST: PATCH obj2, , sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
+                sub2->sendHeartbeat , sub2->heartbeatIntervalMinutes, sub2->retryPolicy);
+            }
+        }
+#endif
+            //
+
+            EventServiceManager::getInstance().updateSubscriptionData();
+
+            //
+                BMCWEB_LOG_ERROR(
+                "TEST: Subscriptions PATCH after - DEBUG , sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
+                subValue->sendHeartbeat, subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
+
+      // DEBUG WRITE
+        for (const auto& it :
+                 EventServiceManager::getInstance().subscriptionsMap)
+        {
+                Subscription& entry = *it.second;
+                BMCWEB_LOG_ERROR("  TEST: subscriptionsMap entry ID={}, sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
+                        entry.id, entry.sendHeartbeat, entry.heartbeatIntervalMinutes, entry.retryPolicy);
+        }
+
+            for (const auto& it :
+                 persistent_data::EventServiceStore::getInstance().subscriptionsConfigMap)
+        {
+                std::shared_ptr<persistent_data::UserSubscription> entry = it.second;
+                BMCWEB_LOG_ERROR("  TEST: subscriptionsConfigMap entry ID={}, sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
+                        entry->id, entry->sendHeartbeat, entry->heartbeatIntervalMinutes, entry->retryPolicy);
+        }
+
+                BMCWEB_LOG_ERROR(
+                "TEST: Subscriptions PATCH DONE after , sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
+                subValue->sendHeartbeat, subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
+
+
+        });
     BMCWEB_ROUTE(app, "/redfish/v1/EventService/Subscriptions/<str>/")
         // The below privilege is wrong, it should be ConfigureManager OR
         // ConfigureSelf

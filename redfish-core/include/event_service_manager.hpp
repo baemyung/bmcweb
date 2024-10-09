@@ -618,6 +618,7 @@ class Subscription : public persistent_data::UserSubscription
 class EventServiceManager
 {
   private:
+  public:
     bool serviceEnabled = false;
     uint32_t retryAttempts = 0;
     uint32_t retryTimeoutInterval = 0;
@@ -664,6 +665,8 @@ class EventServiceManager
 
     void initConfig()
     {
+        BMCWEB_LOG_ERROR(" EventServiceManager: initConfig BEGIN");
+
         loadOldBehavior();
 
         persistent_data::EventServiceConfig eventServiceConfig =
@@ -710,10 +713,18 @@ class EventServiceManager
             subValue->metricReportDefinitions = newSub->metricReportDefinitions;
             subValue->originResources = newSub->originResources;
 
+            BMCWEB_LOG_ERROR(
+                "TEST: initConfig, sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
+                subValue->sendHeartbeat, subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
+
             if (subValue->id.empty())
             {
                 BMCWEB_LOG_ERROR("Failed to add subscription");
             }
+
+            BMCWEB_LOG_ERROR(
+                "TEST:  LOOP initConfig id={}, sendHeartbeat={}, Delivery={}",
+                subValue->id, subValue->sendHeartbeat, subValue->retryPolicy);
             subscriptionsMap.insert(std::pair(subValue->id, subValue));
 
             updateNoOfSubscribersCount();
@@ -726,6 +737,7 @@ class EventServiceManager
             // Update retry configuration.
             subValue->updateRetryConfig(retryAttempts, retryTimeoutInterval);
         }
+        BMCWEB_LOG_ERROR(" EventServiceManager: initConfig END");
     }
 
     static void loadOldBehavior()
@@ -821,6 +833,7 @@ class EventServiceManager
 
     void updateSubscriptionData() const
     {
+        BMCWEB_LOG_ERROR("TEST: updateSubscriptionData BEGIN");
         persistent_data::EventServiceStore::getInstance()
             .eventServiceConfig.enabled = serviceEnabled;
         persistent_data::EventServiceStore::getInstance()
@@ -828,13 +841,30 @@ class EventServiceManager
         persistent_data::EventServiceStore::getInstance()
             .eventServiceConfig.retryTimeoutInterval = retryTimeoutInterval;
 
+        BMCWEB_LOG_ERROR("TEST: updateSubscriptionData before writeData");
+
+        // DEBUG WRITE
+        for (const auto& it :
+             EventServiceManager::getInstance().subscriptionsMap)
+        {
+            Subscription& entry = *it.second;
+            BMCWEB_LOG_ERROR(
+                "  TEST: loop: Subscription entry ID={}, sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
+                entry.id, entry.sendHeartbeat, entry.heartbeatIntervalMinutes,
+                entry.retryPolicy);
+        }
+
         persistent_data::getConfig().writeData();
+
+        BMCWEB_LOG_ERROR("TEST: updateSubscriptionData after writeData");
     }
 
     void setEventServiceConfig(const persistent_data::EventServiceConfig& cfg)
     {
         bool updateConfig = false;
         bool updateRetryCfg = false;
+
+        BMCWEB_LOG_ERROR("TEST: setEventServiceConfig ");
 
         if (serviceEnabled != cfg.enabled)
         {
@@ -866,7 +896,11 @@ class EventServiceManager
 
         if (updateConfig)
         {
+            BMCWEB_LOG_ERROR(
+                "TEST: setEventServiceConfig calls updateSubscriptionData");
             updateSubscriptionData();
+            BMCWEB_LOG_ERROR(
+                "TEST: setEventServiceConfig returns updateSubscriptionData");
         }
 
         if (updateRetryCfg)
@@ -922,6 +956,10 @@ class EventServiceManager
             return nullptr;
         }
         std::shared_ptr<Subscription> subValue = obj->second;
+
+        BMCWEB_LOG_ERROR(
+            "TEST: getSubscription for id={}, subValue->id={}  OBTAINED", id,
+            subValue->id);
         return subValue;
     }
 
@@ -956,6 +994,8 @@ class EventServiceManager
             return "";
         }
 
+        BMCWEB_LOG_ERROR("TEST addSubscriptionInternal newSub id={}", id);
+
         std::shared_ptr<persistent_data::UserSubscription> newSub =
             std::make_shared<persistent_data::UserSubscription>();
         newSub->id = id;
@@ -974,6 +1014,9 @@ class EventServiceManager
         newSub->metricReportDefinitions = subValue->metricReportDefinitions;
         newSub->originResources = subValue->originResources;
 
+        BMCWEB_LOG_ERROR(
+            "TEST**** addSubscriptionInternal 111   id={}, newSub-id={} added to subscriptionsConfigMap ",
+            id, newSub->id);
         persistent_data::EventServiceStore::getInstance()
             .subscriptionsConfigMap.emplace(newSub->id, newSub);
 
@@ -989,8 +1032,16 @@ class EventServiceManager
         // Update retry configuration.
         subValue->updateRetryConfig(retryAttempts, retryTimeoutInterval);
 
+        BMCWEB_LOG_ERROR(
+            "TEST**** addSubscriptionInternal  222 BEFORE DONE id={}, newSub-id={}, subValue-id={} added to subscriptionsConfigMap ",
+            id, newSub->id, subValue->id);
+
         // Set Subscription ID for back trace
         subValue->setSubscriptionId(id);
+
+        BMCWEB_LOG_ERROR(
+            "TEST**** addSubscriptionInternal 333  DONE id={}, newSub-id={}, subValue-id={} added to subscriptionsConfigMap ",
+            id, newSub->id, subValue->id);
 
         return id;
     }
@@ -1037,9 +1088,19 @@ class EventServiceManager
     std::string
         addPushSubscription(const std::shared_ptr<Subscription>& subValue)
     {
+        BMCWEB_LOG_ERROR(
+            "TEST: addPushSubscription subValue: sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
+            subValue->sendHeartbeat, subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
+
         std::string id = addSubscriptionInternal(subValue);
 
         updateSubscriptionData();
+
+        BMCWEB_LOG_ERROR(
+            "TEST: addPushSubscription subValue: RETURN-ID={} sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
+            subValue->id, subValue->sendHeartbeat,
+            subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
+
         return id;
     }
 
