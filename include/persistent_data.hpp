@@ -49,6 +49,8 @@ class ConfigFile
     // this application for the moment
     void readData()
     {
+        BMCWEB_LOG_ERROR("TEST: ConfigFile readData filename={}", filename);
+
         std::ifstream persistentFile(filename);
         uint64_t fileRevision = 0;
         if (persistentFile.is_open())
@@ -155,6 +157,8 @@ class ConfigFile
                     }
                     else if (item.first == "subscriptions")
                     {
+                        BMCWEB_LOG_ERROR(
+                            "TEST: ConfigFile readData for subscriptions BEGIN");
                         for (const auto& elem : item.second)
                         {
                             std::shared_ptr<UserSubscription> newSubscription =
@@ -167,6 +171,11 @@ class ConfigFile
                                 continue;
                             }
 
+                            BMCWEB_LOG_ERROR(
+                                "TEST: readData, sendHeartbeat={}, heartbestIntervalMinutes={}",
+                                newSubscription->sendHeartbeat,
+                                newSubscription->heartbeatIntervalMinutes);
+
                             BMCWEB_LOG_DEBUG("Restored subscription: {} {}",
                                              newSubscription->id,
                                              newSubscription->customText);
@@ -174,6 +183,8 @@ class ConfigFile
                                 .subscriptionsConfigMap.emplace(
                                     newSubscription->id, newSubscription);
                         }
+                        BMCWEB_LOG_ERROR(
+                            "TEST: ConfigFile readData for subscriptions END");
                     }
                     else
                     {
@@ -206,6 +217,8 @@ class ConfigFile
 
     void writeData()
     {
+        BMCWEB_LOG_ERROR("TEST: writeData BEGIN");
+
         std::ofstream persistentFile(filename);
 
         // set the permission of the file to 640
@@ -263,6 +276,7 @@ class ConfigFile
                 sessions.emplace_back(std::move(session));
             }
         }
+
         nlohmann::json& subscriptions = data["subscriptions"];
         subscriptions = nlohmann::json::array();
         for (const auto& it :
@@ -285,6 +299,11 @@ class ConfigFile
                 std::string name(header.name_string());
                 headers[std::move(name)] = header.value();
             }
+
+            BMCWEB_LOG_ERROR(
+                "TEST:  subscription id={}, sendHeartbeat={}, heartbeatIntervalMinutes={}",
+                subValue.id, subValue.sendHeartbeat,
+                subValue.heartbeatIntervalMinutes);
 
             nlohmann::json::object_t subscription;
 

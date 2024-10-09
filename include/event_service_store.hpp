@@ -98,6 +98,9 @@ struct UserSubscription
                 {
                     continue;
                 }
+
+                BMCWEB_LOG_ERROR("TEST: readFromJson, sendHeartbeat={}",
+                                 *value);
                 subvalue->sendHeartbeat = *value;
             }
             else if (element.first == "HeartbeatIntervalMinutes")
@@ -109,8 +112,13 @@ struct UserSubscription
                 {
                     continue;
                 }
+
                 subvalue->heartbeatIntervalMinutes =
                     static_cast<uint32_t>(*value);
+
+                BMCWEB_LOG_ERROR(
+                    "TEST: readFromJson, heartbeatIntervalMinutes={}",
+                    subvalue->heartbeatIntervalMinutes);
             }
             else if (element.first == "Context")
             {
