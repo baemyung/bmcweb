@@ -876,7 +876,7 @@ auto obj = subscriptionsMap.find(subValue->id);
         if (obj != subscriptionsMap.end())
         {
             auto obj2 = persistent_data::EventServiceStore::getInstance().subscriptionsConfigMap.find(subValue->id);
-            if(obj2 != ersistent_data::EventServiceStore::getInstance().subscriptionsConfigMap.end())
+            if(obj2 != persistent_data::EventServiceStore::getInstance().subscriptionsConfigMap.end())
             {
                 auto sub2 = obj2->second;
     BMCWEB_LOG_ERROR("TEST: PATCH obj2, , sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
@@ -884,7 +884,25 @@ auto obj = subscriptionsMap.find(subValue->id);
             }
         }
 #endif
-            //
+            // Sync Subscription to subscriptionConfig
+            std::shared_ptr<persistent_data::UserSubscription> userSub = persistent_data::EventServiceStore::getInstance().getUserSubscriptionConfig(subValue->id);
+            if(userSub != nullptr)
+            {
+                BMCWEB_LOG_ERROR("TEST: SyncUp to UserSub BEFORE SYNC, , sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
+                userSub->sendHeartbeat, userSub->heartbeatIntervalMinutes, userSub->retryPolicy);
+
+                 userSub->customText  = subValue->customText ;
+                userSub->sendHeartbeat = subValue->sendHeartbeat;
+                userSub->heartbeatIntervalMinutes = subValue->heartbeatIntervalMinutes;
+                userSub->retryPolicy = subValue->retryPolicy;
+                userSub->httpHeaders = subValue->httpHeaders;
+                userSub->verifyCertificate = subValue->verifyCertificate;
+
+                BMCWEB_LOG_ERROR("TEST: SyncUp to UserSub AFTER SYNC, , sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
+                userSub->sendHeartbeat, userSub->heartbeatIntervalMinutes, userSub->retryPolicy);
+            }
+
+
 
             EventServiceManager::getInstance().updateSubscriptionData();
 
