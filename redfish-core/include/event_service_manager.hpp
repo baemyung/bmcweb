@@ -617,7 +617,6 @@ class Subscription : public persistent_data::UserSubscription
 class EventServiceManager
 {
   private:
-  public:
     bool serviceEnabled = false;
     uint32_t retryAttempts = 0;
     uint32_t retryTimeoutInterval = 0;

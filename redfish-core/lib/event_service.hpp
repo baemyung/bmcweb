@@ -912,6 +912,7 @@ auto obj = subscriptionsMap.find(subValue->id);
                 subValue->sendHeartbeat, subValue->heartbeatIntervalMinutes, subValue->retryPolicy);
 
       // DEBUG WRITE
+#if 0
         for (const auto& it :
                  EventServiceManager::getInstance().subscriptionsMap)
         {
@@ -920,13 +921,14 @@ auto obj = subscriptionsMap.find(subValue->id);
                         entry.id, entry.sendHeartbeat, entry.heartbeatIntervalMinutes, entry.retryPolicy);
         }
 
-            for (const auto& it :
+        for (const auto& it :
                  persistent_data::EventServiceStore::getInstance().subscriptionsConfigMap)
         {
                 std::shared_ptr<persistent_data::UserSubscription> entry = it.second;
                 BMCWEB_LOG_ERROR("  TEST: subscriptionsConfigMap entry ID={}, sendHeartbeat={}, heartbeatIntervalMinutes={}, retryPolicy={}",
                         entry->id, entry->sendHeartbeat, entry->heartbeatIntervalMinutes, entry->retryPolicy);
         }
+#endif
 
                 BMCWEB_LOG_ERROR(
                 "TEST: Subscriptions PATCH DONE after , sendHeartbeat={}, heartbeatIntervalMinutes={}, DeliveryRetryPolicy={}",
