@@ -651,6 +651,8 @@ inline void requestRoutesEventDestinationCollection(App& app)
                 }
             }
 
+            BMCWEB_LOG_ERROR("TEST: CREATE subvalue.id={}",
+                             subValue->userSub.id);
             std::string id =
                 EventServiceManager::getInstance().addPushSubscription(
                     subValue);
@@ -659,7 +661,8 @@ inline void requestRoutesEventDestinationCollection(App& app)
                 messages::internalError(asyncResp->res);
                 return;
             }
-
+            BMCWEB_LOG_ERROR("TEST: CREATED subvalue.id={}, id={}",
+                             subValue->userSub.id, id);
             messages::created(asyncResp->res);
             asyncResp->res.addHeader(
                 "Location", "/redfish/v1/EventService/Subscriptions/" + id);
@@ -812,6 +815,10 @@ inline void requestRoutesEventDestination(App& app)
                 {
                     subValue->userSub.verifyCertificate = *verifyCertificate;
                 }
+
+                // Sync Subscription to UserSubscriptionConfig
+                persistent_data::EventServiceStore::getInstance()
+                    .updateUserSubscriptionConfig(subValue->userSub);
 
                 EventServiceManager::getInstance().updateSubscriptionData();
             });

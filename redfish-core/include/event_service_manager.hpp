@@ -50,6 +50,7 @@ limitations under the License.
 #include <ranges>
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace redfish
 {
@@ -441,15 +442,15 @@ class Subscription
         return eventSeqNum;
     }
 
-    void setSubscriptionId(const std::string& id2)
+    void setSubscriptionId(const std::string& idIn)
     {
-        BMCWEB_LOG_DEBUG("Subscription ID: {}", id2);
-        subId = id2;
+        BMCWEB_LOG_DEBUG("Subscription ID: {}", idIn);
+        userSub.id = idIn;
     }
 
     std::string getSubscriptionId()
     {
-        return subId;
+        return userSub.id;
     }
 
     bool matchSseId(const crow::sse_socket::Connection& thisConn)
@@ -477,7 +478,6 @@ class Subscription
     persistent_data::UserSubscription userSub;
 
   private:
-    std::string subId;
     uint64_t eventSeqNum = 1;
     boost::urls::url host;
     std::shared_ptr<crow::ConnectionPolicy> policy;
@@ -811,6 +811,8 @@ class EventServiceManager
 
         persistent_data::UserSubscription newSub(subValue->userSub);
 
+        BMCWEB_LOG_ERROR("TEST: addSubscriptionInternal id={}, userSub.id={}",
+                         id, subValue->userSub.id);
         persistent_data::EventServiceStore::getInstance()
             .subscriptionsConfigMap.emplace(newSub.id, newSub);
 
@@ -828,6 +830,10 @@ class EventServiceManager
 
         // Set Subscription ID for back trace
         subValue->setSubscriptionId(id);
+
+        BMCWEB_LOG_ERROR(
+            "TEST: addSubscriptionInterna2222l id={}, userSub.id={}", id,
+            subValue->userSub.id);
 
         return id;
     }
