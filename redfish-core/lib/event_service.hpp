@@ -297,7 +297,7 @@ inline void requestRoutesEventDestinationCollection(App& app)
             std::optional<std::string> eventFormatType2;
             std::optional<std::string> retryPolicy;
             std::optional<bool> sendHeartbeat;
-            std::optional<uint16_t> heartbeatIntervalMinutes;
+            std::optional<uint64_t> heartbeatIntervalMinutes;
             std::optional<std::vector<std::string>> msgIds;
             std::optional<std::vector<std::string>> regPrefixes;
             std::optional<std::vector<std::string>> originResources;
@@ -654,7 +654,7 @@ inline void requestRoutesEventDestinationCollection(App& app)
                 else
                 {
                     subValue->heartbeatIntervalMinutes =
-                        *heartbeatIntervalMinutes;
+                        static_cast<uint16_t>(*heartbeatIntervalMinutes);
                 }
             }
 
@@ -787,7 +787,7 @@ inline void requestRoutesEventDestination(App& app)
                 std::optional<std::string> context;
                 std::optional<std::string> retryPolicy;
                 std::optional<bool> sendHeartbeat;
-                std::optional<uint16_t> heartbeatIntervalMinutes;
+                std::optional<uint64_t> heartbeatIntervalMinutes;
                 std::optional<bool> verifyCertificate;
                 std::optional<std::vector<nlohmann::json::object_t>> headers;
 
@@ -859,7 +859,7 @@ inline void requestRoutesEventDestination(App& app)
                     else
                     {
                         subValue->heartbeatIntervalMinutes =
-                            *heartbeatIntervalMinutes;
+                            static_cast<uint16_t>(*heartbeatIntervalMinutes);
                     }
                 }
 
