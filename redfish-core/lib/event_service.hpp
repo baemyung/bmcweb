@@ -650,7 +650,8 @@ inline void requestRoutesEventDestinationCollection(App& app)
                         mrdUri);
                 }
             }
-
+            BMCWEB_LOG_ERROR("TEST: CREATE subvalue.id={}",
+                             subValue->userSub.id);
             std::string id =
                 EventServiceManager::getInstance().addPushSubscription(
                     subValue);
@@ -659,6 +660,8 @@ inline void requestRoutesEventDestinationCollection(App& app)
                 messages::internalError(asyncResp->res);
                 return;
             }
+            BMCWEB_LOG_ERROR("TEST: CREATED subvalue.id={}, id={}",
+                             subValue->userSub.id, id);
 
             messages::created(asyncResp->res);
             asyncResp->res.addHeader(

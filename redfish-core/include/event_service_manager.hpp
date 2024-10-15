@@ -809,10 +809,16 @@ class EventServiceManager
             return "";
         }
 
+        BMCWEB_LOG_ERROR("TEST: addSubscriptionInternal id={}, userSub.id={}",
+                         id, subValue->userSub.id);
         persistent_data::UserSubscription newSub(subValue->userSub);
 
         persistent_data::EventServiceStore::getInstance()
             .subscriptionsConfigMap.emplace(newSub.id, newSub);
+
+        BMCWEB_LOG_ERROR(
+            "TEST: addSubscriptionInternal id={}, userSub.id={}, newSub.id={}",
+            id, subValue->userSub.id, newSub.id);
 
         updateNoOfSubscribersCount();
 
