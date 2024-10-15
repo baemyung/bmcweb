@@ -454,15 +454,28 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
                 state = ConnState::suspended;
             }
 
+            BMCWEB_LOG_ERROR(
+                "Maximum number of retries reached. retrycount={}, policy={} before calling callback",
+                retryCount, connPolicy->retryPolicyAction);
+
             // We want to return a 502 to indicate there was an error with
             // the external server
             res.result(boost::beast::http::status::bad_gateway);
             callback(false, connId, res);
             res.clear();
 
+            BMCWEB_LOG_ERROR(
+                "Maximum number of retries reached. retrycount={}, policy={} after calling callback",
+                retryCount, connPolicy->retryPolicyAction);
+
             // Reset the retrycount to zero so that client can try
             // connecting again if needed
             retryCount = 0;
+
+            BMCWEB_LOG_ERROR(
+                "Maximum number of retries reached. retrycount={}, policy={} RESET calling callback",
+                retryCount, connPolicy->retryPolicyAction);
+
             return;
         }
 
@@ -680,6 +693,8 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
     // Otherwise closes the connection if it is not a keep-alive
     void sendNext(bool keepAlive, uint32_t connId)
     {
+        BMCWEB_LOG_ERROR("TEST connpool.sendNext  connId={} BEGIN", connId);
+
         auto conn = connections[connId];
 
         // Allow the connection's handler to be deleted
@@ -721,6 +736,8 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
             conn->state = ConnState::abortConnection;
             conn->doClose();
         }
+
+        BMCWEB_LOG_ERROR("TEST connpool.sendNext  connId={} END", connId);
     }
 
     void sendData(std::string&& data, const boost::urls::url_view_base& destUri,
@@ -728,6 +745,8 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
                   const boost::beast::http::verb verb,
                   const std::function<void(Response&)>& resHandler)
     {
+        BMCWEB_LOG_ERROR("TEST connpool.sendData destUri={} BEGIN", destUri);
+
         // Construct the request to be sent
         boost::beast::http::request<bmcweb::HttpBody> thisReq(
             verb, destUri.encoded_target(), 11, "", httpHeader);
@@ -765,10 +784,15 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
             }
         }
 
+        BMCWEB_LOG_ERROR("TEST connpool.sendData destUri={} MID-1", destUri);
+
         // All connections in use so create a new connection or add request
         // to the queue
         if (connections.size() < connPolicy->maxConnections)
         {
+            BMCWEB_LOG_ERROR(
+                "TEST connpool.sendData destUri={} calling doResolve", destUri);
+
             BMCWEB_LOG_DEBUG("Adding new connection to pool {}", id);
             auto conn = addConnection();
             conn->req = std::move(thisReq);
@@ -790,6 +814,8 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
             dummyRes.result(boost::beast::http::status::too_many_requests);
             resHandler(dummyRes);
         }
+
+        BMCWEB_LOG_ERROR("TEST connpool.sendData destUri={} END", destUri);
     }
 
     // Callback to be called once the request has been sent
@@ -797,6 +823,9 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
                               const std::function<void(Response&)>& resHandler,
                               bool keepAlive, uint32_t connId, Response& res)
     {
+        BMCWEB_LOG_ERROR("TEST connpool.afterSendData  connId={} BEGIN",
+                         connId);
+
         // Allow provided callback to perform additional processing of the
         // request
         resHandler(res);
@@ -812,6 +841,8 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
         }
 
         self->sendNext(keepAlive, connId);
+
+        BMCWEB_LOG_ERROR("TEST connpool.afterSendData  connId={} END", connId);
     }
 
     std::shared_ptr<ConnectionInfo>& addConnection()
@@ -845,21 +876,34 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
     // Check whether all connections are terminated
     bool areAllConnectionsTerminated()
     {
+        BMCWEB_LOG_ERROR("TEST: areAllConnectionsTerminated BEGIN");
         if (connections.empty())
         {
             BMCWEB_LOG_DEBUG("There are no connections for pool id:{}", id);
+            BMCWEB_LOG_ERROR("TEST: areAllConnectionsTerminated END false1");
             return false;
         }
         for (const auto& conn : connections)
         {
-            if (conn->state != ConnState::terminated)
+            if (conn == nullptr)
+            {
+                BMCWEB_LOG_ERROR(
+                    "TEST: ERROR=========== areAllConnectionsTerminated TEST CONNN NULLPTR");
+            }
+
+            BMCWEB_LOG_ERROR("TEST: areAllConnectionsTerminated conn ");
+            if (conn != nullptr && conn->state != ConnState::terminated)
             {
                 BMCWEB_LOG_DEBUG(
                     "Not all connections of pool id:{} are terminated", id);
+                BMCWEB_LOG_ERROR(
+                    "TEST: areAllConnectionsTerminated END false2,  state={}",
+                    static_cast<int>(conn->state));
                 return false;
             }
         }
         BMCWEB_LOG_INFO("All connections of pool id:{} are terminated", id);
+        BMCWEB_LOG_ERROR("TEST: areAllConnectionsTerminated END true");
         return true;
     }
 };
@@ -902,9 +946,13 @@ class HttpClient
                   const boost::beast::http::fields& httpHeader,
                   const boost::beast::http::verb verb)
     {
+        BMCWEB_LOG_ERROR("TEST http-sendData destUri={} BEGIN", destUri);
+
         const std::function<void(Response&)> cb = genericResHandler;
         sendDataWithCallback(std::move(data), destUri, verifyCert, httpHeader,
                              verb, cb);
+
+        BMCWEB_LOG_ERROR("TEST http-sendData destUri={} END", destUri);
     }
 
     // Send request to destIP and use the provided callback to
@@ -916,6 +964,7 @@ class HttpClient
                               const boost::beast::http::verb verb,
                               const std::function<void(Response&)>& resHandler)
     {
+        BMCWEB_LOG_ERROR("TEST: sendDataWithCallback BEGIN");
         std::string_view verify = "ssl_verify";
         if (verifyCert == ensuressl::VerifyCertificate::NoVerify)
         {
@@ -934,11 +983,14 @@ class HttpClient
         // newly created connection pool
         pool.first->second->sendData(std::move(data), destUrl, httpHeader, verb,
                                      resHandler);
+
+        BMCWEB_LOG_ERROR("TEST: sendDataWithCallback END");
     }
 
     // Test whether all connections are terminated (after MaxRetryAttempts)
     bool isTerminated()
     {
+        BMCWEB_LOG_ERROR("TEST: isTerminated BEGIN");
         for (const auto& pool : connectionPools)
         {
             if (pool.second != nullptr &&
@@ -946,10 +998,12 @@ class HttpClient
             {
                 BMCWEB_LOG_DEBUG(
                     "Not all of client connections are terminated");
+                BMCWEB_LOG_ERROR("TEST: isTerminated END false");
                 return false;
             }
         }
         BMCWEB_LOG_DEBUG("All client connections are terminated");
+        BMCWEB_LOG_ERROR("TEST: isTerminated END true");
         return true;
     }
 };

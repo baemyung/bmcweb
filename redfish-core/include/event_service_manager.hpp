@@ -278,8 +278,7 @@ class Subscription : std::enable_shared_from_this<Subscription>
     ~Subscription() = default;
 
     // callback for subscription sendData
-    void resHandler(const std::shared_ptr<Subscription>& /*unused*/,
-                    const crow::Response& res)
+    void resHandler(std::shared_ptr<Subscription> /*unused*/, const crow::Response& res)
     {
         BMCWEB_LOG_DEBUG("Response handled with return code: {}",
                          res.resultInt());
@@ -291,6 +290,8 @@ class Subscription : std::enable_shared_from_this<Subscription>
             return;
         }
 
+        BMCWEB_LOG_ERROR("TEST: resHandler USERSUB retry=",
+                         userSub.retryPolicy);
         if (userSub.retryPolicy != "TerminateAfterRetries")
         {
             return;
@@ -298,10 +299,12 @@ class Subscription : std::enable_shared_from_this<Subscription>
         if (client->isTerminated())
         {
             BMCWEB_LOG_INFO("Subscription {} is deleted after MaxRetryAttempts",
-                            subId);
+                            userSub.id);
             if (deleter)
             {
+                BMCWEB_LOG_ERROR("TEST: resHandler CALLING deleter");
                 deleter();
+                BMCWEB_LOG_ERROR("TEST: resHandler FROMdeleter");
             }
         }
     }
@@ -318,6 +321,9 @@ class Subscription : std::enable_shared_from_this<Subscription>
 
         if (client)
         {
+            BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber 111r");
+
+#if 1
             client->sendDataWithCallback(
                 std::move(msg), userSub.destinationUrl,
                 static_cast<ensuressl::VerifyCertificate>(
@@ -325,6 +331,24 @@ class Subscription : std::enable_shared_from_this<Subscription>
                 userSub.httpHeaders, boost::beast::http::verb::post,
                 std::bind_front(&Subscription::resHandler, this,
                                 shared_from_this()));
+#else
+            auto resEvtHandler = [self{shared_from_this()}](
+                                     const crow::Response& res) {
+                BMCWEB_LOG_ERROR(
+                    "TEST: sendEventToSubscriber callback-resHandler BEGIN");
+                self->resHandler(res);
+                BMCWEB_LOG_ERROR(
+                    "TEST: sendEventToSubscriber callback-resHandler DONE");
+            };
+
+            client->sendDataWithCallback(
+                std::move(msg), userSub.destinationUrl,
+                static_cast<ensuressl::VerifyCertificate>(
+                    userSub.verifyCertificate),
+                userSub.httpHeaders, boost::beast::http::verb::post,
+                resEvtHandler);
+#endif
+            BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber 222");
             return true;
         }
 
@@ -358,9 +382,14 @@ class Subscription : std::enable_shared_from_this<Subscription>
         msg["Name"] = "Event Log";
         msg["Events"] = logEntryArray;
 
+        BMCWEB_LOG_ERROR(
+            "TEST: sendTestEventLog callingsendEventToSubscriber ");
         std::string strMsg =
             msg.dump(2, ' ', true, nlohmann::json::error_handler_t::replace);
-        return sendEventToSubscriber(std::move(strMsg));
+        bool ret = sendEventToSubscriber(std::move(strMsg));
+        BMCWEB_LOG_ERROR(
+            "TEST: sendTestEventLog callingsendEventToSubscriber DONE ");
+        return ret;
     }
 
     void filterAndSendEventLogs(
@@ -413,7 +442,9 @@ class Subscription : std::enable_shared_from_this<Subscription>
         msg["Events"] = std::move(logEntryArray);
         std::string strMsg =
             msg.dump(2, ' ', true, nlohmann::json::error_handler_t::replace);
+        BMCWEB_LOG_ERROR("TEST: calling sendEventToSubscriber");
         sendEventToSubscriber(std::move(strMsg));
+        BMCWEB_LOG_ERROR("TEST: returned from sendEventToSubscriber");
         eventSeqNum++;
     }
 
@@ -473,15 +504,15 @@ class Subscription : std::enable_shared_from_this<Subscription>
         return eventSeqNum;
     }
 
-    void setSubscriptionId(const std::string& id2)
+    void setSubscriptionId(const std::string& idIn)
     {
-        BMCWEB_LOG_DEBUG("Subscription ID: {}", id2);
-        subId = id2;
+        BMCWEB_LOG_DEBUG("Subscription ID: {}", idIn);
+        userSub.id = idIn;
     }
 
-    std::string getSubscriptionId()
+    std::string getSubscriptionId() const
     {
-        return subId;
+        return userSub.id;
     }
 
     bool matchSseId(const crow::sse_socket::Connection& thisConn)
@@ -510,7 +541,6 @@ class Subscription : std::enable_shared_from_this<Subscription>
     std::function<void()> deleter;
 
   private:
-    std::string subId;
     uint64_t eventSeqNum = 1;
     boost::urls::url host;
     std::shared_ptr<crow::ConnectionPolicy> policy;
@@ -598,11 +628,21 @@ class EventServiceManager
             std::shared_ptr<Subscription> subValue =
                 std::make_shared<Subscription>(newSub, *url, ioc);
             std::string id = subValue->userSub.id;
-            subValue->deleter = [id]() {
-                EventServiceManager::getInstance().deleteSubscription(id);
-            };
+            BMCWEB_LOG_ERROR("TEST: deleter SETUP  for ID={}", id);
 
-            subscriptionsMap.emplace(id, subValue);
+            subValue->deleter = [id]() {
+                BMCWEB_LOG_ERROR(
+                    "TEST: INSIDE deleter calls deleteSubscription for ID={}",
+                    id);
+                EventServiceManager::getInstance().deleteSubscription(id);
+                BMCWEB_LOG_ERROR(
+                    "TEST: INSIDE deleter FROM deleteSubscription for ID={}",
+                    id);
+            };
+            BMCWEB_LOG_ERROR("TEST: deleter SETUP-DONE  for ID={}",
+                             subValue->userSub.id);
+
+            subscriptionsMap.emplace(subValue->userSub.id, subValue);
 
             updateNoOfSubscribersCount();
 
@@ -765,8 +805,8 @@ class EventServiceManager
             for (const auto& it :
                  EventServiceManager::getInstance().subscriptionsMap)
             {
-                Subscription& entry = *it.second;
-                entry.updateRetryConfig(retryAttempts, retryTimeoutInterval);
+                std::shared_ptr<Subscription> entry = it.second;
+                entry->updateRetryConfig(retryAttempts, retryTimeoutInterval);
             }
         }
     }
@@ -846,6 +886,9 @@ class EventServiceManager
             return "";
         }
 
+        // Set Subscription ID for back trace
+        subValue->setSubscriptionId(id);
+
         persistent_data::UserSubscription newSub(subValue->userSub);
 
         persistent_data::EventServiceStore::getInstance()
@@ -862,9 +905,6 @@ class EventServiceManager
         }
         // Update retry configuration.
         subValue->updateRetryConfig(retryAttempts, retryTimeoutInterval);
-
-        // Set Subscription ID for back trace
-        subValue->setSubscriptionId(id);
 
         return id;
     }
@@ -908,8 +948,7 @@ class EventServiceManager
         return id;
     }
 
-    std::string
-        addPushSubscription(const std::shared_ptr<Subscription>& subValue)
+    std::string addPushSubscription(std::shared_ptr<Subscription> subValue)
     {
         std::string id = addSubscriptionInternal(subValue);
 
@@ -925,10 +964,13 @@ class EventServiceManager
 
     bool deleteSubscription(const std::string& id)
     {
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription BEGIN for id={}", id);
         auto obj = subscriptionsMap.find(id);
         if (obj == subscriptionsMap.end())
         {
             BMCWEB_LOG_WARNING("Could not find subscription with id {}", id);
+            BMCWEB_LOG_ERROR("TEST: deleteSubscription END false 1 for id={}",
+                             id);
             return false;
         }
         subscriptionsMap.erase(obj);
@@ -937,13 +979,18 @@ class EventServiceManager
         if (persistentObj == event.subscriptionsConfigMap.end())
         {
             BMCWEB_LOG_ERROR("Subscription wasn't in persistent data");
+            BMCWEB_LOG_ERROR("TEST: deleteSubscription END true 1 for id={}",
+                             id);
             return true;
         }
+
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription calling erase");
         persistent_data::EventServiceStore::getInstance()
             .subscriptionsConfigMap.erase(persistentObj);
         updateNoOfSubscribersCount();
         updateSubscriptionData();
 
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription END false 2 for id={}", id);
         return true;
     }
 
@@ -1021,7 +1068,7 @@ class EventServiceManager
 
         for (auto& it : subscriptionsMap)
         {
-            std::shared_ptr<Subscription>& entry = it.second;
+            std::shared_ptr<Subscription> entry = it.second;
             if (!eventMatchesFilter(entry->userSub, eventMessage, resourceType))
             {
                 BMCWEB_LOG_DEBUG("Filter didn't match");
@@ -1038,9 +1085,14 @@ class EventServiceManager
             msgJson["Id"] = eventId;
             msgJson["Events"] = std::move(eventRecord);
 
+            BMCWEB_LOG_ERROR("TEST: sendEvent calling sendEventToSubscriber");
+
             std::string strMsg = msgJson.dump(
                 2, ' ', true, nlohmann::json::error_handler_t::replace);
             entry->sendEventToSubscriber(std::move(strMsg));
+
+            BMCWEB_LOG_ERROR(
+                "TEST: sendEvent returned from sendEventToSubscriber");
             eventId++; // increment the eventId
         }
     }
@@ -1340,10 +1392,10 @@ class EventServiceManager
         for (const auto& it :
              EventServiceManager::getInstance().subscriptionsMap)
         {
-            Subscription& entry = *it.second;
-            if (entry.userSub.eventFormatType == metricReportFormatType)
+            std::shared_ptr<Subscription> entry = it.second;
+            if (entry->userSub.eventFormatType == metricReportFormatType)
             {
-                entry.filterAndSendReports(id, *readings);
+                entry->filterAndSendReports(id, *readings);
             }
         }
     }

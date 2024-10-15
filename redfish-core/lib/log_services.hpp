@@ -792,10 +792,14 @@ inline void createDumpTaskCallback(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const sdbusplus::message::object_path& createdObjPath)
 {
+    BMCWEB_LOG_ERROR("TEST: createDumpTaskCallback BEGIN ");
     const std::string dumpPath = createdObjPath.parent_path().str;
     const std::string dumpId = createdObjPath.filename();
 
     std::string dumpEntryPath = getDumpEntryPath(dumpPath);
+
+        BMCWEB_LOG_ERROR("TEST: createDumpTaskCallback dumpEntry ");
+
 
     if (dumpEntryPath.empty())
     {
@@ -803,6 +807,8 @@ inline void createDumpTaskCallback(
         messages::internalError(asyncResp->res);
         return;
     }
+
+        BMCWEB_LOG_ERROR("TEST: createDumpTaskCallback call async ");
 
     crow::connections::systemBus->async_method_call(
         [asyncResp, payload = std::move(payload), createdObjPath,
@@ -926,6 +932,8 @@ inline void createDumpTaskCallback(
         },
         "xyz.openbmc_project.Dump.Manager", createdObjPath,
         "org.freedesktop.DBus.Introspectable", "Introspect");
+
+         BMCWEB_LOG_ERROR("TEST: createDumpTaskCallback call DONE ");
 }
 
 inline void createDump(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
@@ -1061,9 +1069,12 @@ inline void createDump(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
             }
             BMCWEB_LOG_DEBUG("Dump Created. Path: {}", objPath.str);
             createDumpTaskCallback(std::move(payload), asyncResp, objPath);
+            BMCWEB_LOG_ERROR("Dump Created. Path: {} .. RETURNED", objPath.str);
         },
         "xyz.openbmc_project.Dump.Manager", getDumpPath(dumpType),
         "xyz.openbmc_project.Dump.Create", "CreateDump", createDumpParamVec);
+
+        BMCWEB_LOG_ERROR("TEST: createDump END");
 }
 
 inline void clearDump(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
@@ -2368,7 +2379,12 @@ inline void handleLogServicesDumpCollectDiagnosticDataPost(
         return;
     }
 
+    BMCWEB_LOG_ERROR("TEST: handleLogServicesDumpCollectDiagnosticDataPost Before CreateDump");
+
     createDump(asyncResp, req, dumpType);
+
+
+    BMCWEB_LOG_ERROR("TEST: handleLogServicesDumpCollectDiagnosticDataPost After CreateDump");
 }
 
 inline void handleLogServicesDumpCollectDiagnosticDataComputerSystemPost(
@@ -2394,7 +2410,11 @@ inline void handleLogServicesDumpCollectDiagnosticDataComputerSystemPost(
                                    systemName);
         return;
     }
+
+    BMCWEB_LOG_ERROR("TEST: handleLogServicesDumpCollectDiagnosticDataComputerSystemPost Before CreateDump");
     createDump(asyncResp, req, "System");
+
+    BMCWEB_LOG_ERROR("TEST: handleLogServicesDumpCollectDiagnosticDataComputerSystemPost Before CreateDump");
 }
 
 inline void handleLogServicesDumpClearLogPost(

@@ -7,6 +7,10 @@
 #include <boost/url/url.hpp>
 #include <nlohmann/json.hpp>
 
+#include <memory>
+#include <string>
+#include <vector>
+
 namespace persistent_data
 {
 
@@ -249,6 +253,11 @@ struct UserSubscription
             subvalue.retryPolicy.empty() || subvalue.eventFormatType.empty() ||
             subvalue.subscriptionType.empty())
         {
+            BMCWEB_LOG_ERROR(
+                "TEST: loadFromOldConfig={}, id={}, url.empty={}, proto={}, retry={}, format={}, subType={}",
+                loadFromOldConfig, subvalue.id, subvalue.destinationUrl.empty(),
+                subvalue.protocol, subvalue.retryPolicy,
+                subvalue.eventFormatType, subvalue.subscriptionType);
             BMCWEB_LOG_ERROR("Subscription missing required field "
                              "information, refusing to restore");
             return std::nullopt;
@@ -319,6 +328,25 @@ class EventServiceStore
     EventServiceConfig& getEventServiceConfig()
     {
         return eventServiceConfig;
+    }
+
+    void updateUserSubscriptionConfig(const UserSubscription& userSub)
+    {
+        BMCWEB_LOG_ERROR("TEST: updateUserSubscriptionConfig BEGIN");
+
+        const std::string& id = userSub.id;
+
+        BMCWEB_LOG_ERROR("TEST: updateUserSubscriptionConfig id={}", id);
+
+        auto obj = subscriptionsConfigMap.find(id);
+        if (obj == subscriptionsConfigMap.end())
+        {
+            BMCWEB_LOG_DEBUG("No UserSubscription exist with ID:{}", id);
+            return;
+        }
+        obj->second = userSub;
+
+        BMCWEB_LOG_ERROR("TEST: updateUserSubscriptionConfig id={}, DONE", id);
     }
 };
 
