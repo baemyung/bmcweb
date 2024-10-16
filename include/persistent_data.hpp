@@ -171,7 +171,7 @@ class ConfigFile
                                              newSub->id, newSub->customText);
 
                             boost::container::flat_map<
-                                std::string, UserSubscription>& configMap =
+                                std::string, std::shared_ptr<UserSubscription>>& configMap =
                                 EventServiceStore::getInstance()
                                     .subscriptionsConfigMap;
                             configMap.emplace(newSub->id, *newSub);
@@ -270,7 +270,7 @@ class ConfigFile
         for (const auto& it :
              EventServiceStore::getInstance().subscriptionsConfigMap)
         {
-            const UserSubscription& subValue = it.second;
+            const UserSubscription& subValue = *it.second;
             if (subValue.subscriptionType == "SSE")
             {
                 BMCWEB_LOG_DEBUG("The subscription type is SSE, so skipping.");

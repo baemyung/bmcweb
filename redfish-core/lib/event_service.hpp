@@ -433,7 +433,7 @@ inline void requestRoutesEventDestinationCollection(App& app)
 
             std::shared_ptr<Subscription> subValue =
                 std::make_shared<Subscription>(
-                    persistent_data::UserSubscription{}, *url, app.ioContext());
+                    std::make_shared<persistent_data::UserSubscription>(), *url, app.ioContext());
 
             subValue->userSub.destinationUrl = std::move(*url);
 
@@ -476,12 +476,12 @@ inline void requestRoutesEventDestinationCollection(App& app)
                         asyncResp->res, *eventFormatType2, "EventFormatType");
                     return;
                 }
-                subValue->userSub.eventFormatType = *eventFormatType2;
+                subValue->userSub->eventFormatType = *eventFormatType2;
             }
             else
             {
                 // If not specified, use default "Event"
-                subValue->userSub.eventFormatType = "Event";
+                subValue->userSub->eventFormatType = "Event";
             }
 
             if (context)
@@ -494,7 +494,7 @@ inline void requestRoutesEventDestinationCollection(App& app)
                                                  maxContextSize);
                     return;
                 }
-                subValue->userSub.customText = *context;
+                subValue->userSub->customText = *context;
             }
 
             if (headers)
