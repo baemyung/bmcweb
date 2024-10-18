@@ -293,14 +293,14 @@ class Subscription : std::enable_shared_from_this<Subscription>
             return;
         }
 
-        if (userSub.retryPolicy != "TerminateAfterRetries")
+        if (userSub->retryPolicy != "TerminateAfterRetries")
         {
             return;
         }
         if (client->isTerminated())
         {
             BMCWEB_LOG_INFO("Subscription {} is deleted after MaxRetryAttempts",
-                            userSub.id);
+                            userSub->id);
             if (deleter)
             {
                 deleter();
@@ -320,6 +320,9 @@ class Subscription : std::enable_shared_from_this<Subscription>
 
         if (client)
         {
+            BMCWEB_LOG_ERROR("Before shared_from_this");
+            auto self = shared_from_this();
+            BMCWEB_LOG_ERROR("After shared_from_this");
             client->sendDataWithCallback(
                 std::move(msg), userSub->destinationUrl,
                 static_cast<ensuressl::VerifyCertificate>(
@@ -599,7 +602,7 @@ class EventServiceManager
             }
             std::shared_ptr<Subscription> subValue =
                 std::make_shared<Subscription>(newSub, *url, ioc);
-            std::string id = subValue->userSub.id;
+            std::string id = subValue->userSub->id;
             subValue->deleter = [id]() {
                 EventServiceManager::getInstance().deleteSubscription(id);
             };
