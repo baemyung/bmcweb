@@ -252,7 +252,7 @@ inline int formatEventLogEntry(
 
 } // namespace event_log
 
-class Subscription : std::enable_shared_from_this<Subscription>
+class Subscription : public std::enable_shared_from_this<Subscription>
 {
   public:
     Subscription(const Subscription&) = delete;
@@ -318,6 +318,9 @@ class Subscription : std::enable_shared_from_this<Subscription>
 
         if (client)
         {
+            BMCWEB_LOG_ERROR("Before shared_from_this");
+            auto self = shared_from_this();
+            BMCWEB_LOG_ERROR("After shared_from_this");
             client->sendDataWithCallback(
                 std::move(msg), userSub.destinationUrl,
                 static_cast<ensuressl::VerifyCertificate>(
