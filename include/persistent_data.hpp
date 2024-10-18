@@ -174,7 +174,25 @@ class ConfigFile
                                 std::string, UserSubscription>& configMap =
                                 EventServiceStore::getInstance()
                                     .subscriptionsConfigMap;
+
+                            BMCWEB_LOG_ERROR(
+                                "TEST: persistent_data readData newSub->id={}",
+                                newSub->id);
                             configMap.emplace(newSub->id, *newSub);
+
+                            auto obj = configMap.find(newSub->id);
+                            if (obj == configMap.end())
+                            {
+                                BMCWEB_LOG_ERROR(
+                                    "TEST: persistent_data readData newSub->id={} .. after emplace. NOT FOUND",
+                                    newSub->id);
+                            }
+                            else
+                            {
+                                BMCWEB_LOG_ERROR(
+                                    "TEST: persistent_data readData newSub->id={} .. after emplace. FOUND id = {}",
+                                    newSub->id, obj->userSub.id);
+                            }
                         }
                     }
                     else

@@ -327,6 +327,8 @@ class EventServiceStore
 
     void updateUserSubscriptionConfig(const UserSubscription& userSub)
     {
+        BMCWEB_LOG_ERROR("TEST: updateUserSubscriptionConfig userSub.id={}",
+                         userSub.id);
         const std::string& id = userSub.id;
         auto obj = subscriptionsConfigMap.find(id);
         if (obj == subscriptionsConfigMap.end())

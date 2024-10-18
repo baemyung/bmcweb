@@ -600,7 +600,9 @@ class EventServiceManager
                 std::make_shared<Subscription>(newSub, *url, ioc);
             std::string id = subValue->userSub.id;
             subValue->deleter = [id]() {
+                BMCWEB_LOG_ERROR("TEST: deleter for id={}, BEGIN", id);
                 EventServiceManager::getInstance().deleteSubscription(id);
+                BMCWEB_LOG_ERROR("TEST: deleter for id={}, END", id);
             };
 
             subscriptionsMap.emplace(id, subValue);
@@ -674,6 +676,9 @@ class EventServiceManager
                             break;
                         }
                         newSub.id = id;
+                        BMCWEB_LOG_ERROR(
+                            "TEST: subscriptionsConfigMap  insert id={}, newSub.id={} ",
+                            id, newSub.id);
                         auto inserted =
                             persistent_data::EventServiceStore::getInstance()
                                 .subscriptionsConfigMap.insert(
@@ -926,18 +931,36 @@ class EventServiceManager
 
     bool deleteSubscription(const std::string& id)
     {
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription BEGIN, id={}", id);
         auto obj = subscriptionsMap.find(id);
         if (obj == subscriptionsMap.end())
         {
             BMCWEB_LOG_WARNING("Could not find subscription with id {}", id);
+            BMCWEB_LOG_ERROR("TEST: deleteSubscription END false 1, id={}", id);
             return false;
         }
-        subscriptionsMap.erase(obj);
+
         auto& event = persistent_data::EventServiceStore::getInstance();
         auto persistentObj = event.subscriptionsConfigMap.find(id);
         if (persistentObj == event.subscriptionsConfigMap.end())
         {
             BMCWEB_LOG_ERROR("Subscription wasn't in persistent data");
+        }
+
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription  TRY ERASE id={}", id);
+
+        subscriptionsMap.erase(obj);
+
+        BMCWEB_LOG_ERROR(
+            "TEST: deleteSubscription ERASE, id={}... ERASED from subscriptionsMap.erase",
+            id);
+
+        // auto& event = persistent_data::EventServiceStore::getInstance();
+        // auto persistentObj = event.subscriptionsConfigMap.find(id);
+        if (persistentObj == event.subscriptionsConfigMap.end())
+        {
+            BMCWEB_LOG_ERROR("Subscription wasn't in persistent data");
+            BMCWEB_LOG_ERROR("TEST: deleteSubscription  END true 1, id={}", id);
             return true;
         }
         persistent_data::EventServiceStore::getInstance()
@@ -945,6 +968,7 @@ class EventServiceManager
         updateNoOfSubscribersCount();
         updateSubscriptionData();
 
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription END, id={}, DONE", id);
         return true;
     }
 
