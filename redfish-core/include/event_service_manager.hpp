@@ -252,17 +252,36 @@ inline int formatEventLogEntry(
 
 } // namespace event_log
 
-class Subscription : std::enable_shared_from_this<Subscription>
+class Subscription;
+static std::shared_ptr<Subscription>
+    getGlobalSubscription(const std::string& id);
+
+class Subscription : public std::enable_shared_from_this<Subscription>
 {
   public:
+#if 0
     Subscription(const Subscription&) = delete;
     Subscription& operator=(const Subscription&) = delete;
     Subscription(Subscription&&) = delete;
     Subscription& operator=(Subscription&&) = delete;
+#else
+    Subscription(const Subscription&) = default;
+    Subscription& operator=(const Subscription&) = default;
+    Subscription(Subscription&&) = default;
+    Subscription& operator=(Subscription&&) = default;
+#endif
+    std::weak_ptr<Subscription> getWeakPtr()
+    {
+        return weak_from_this();
+    }
+    std::shared_ptr<Subscription> getSharedPtr()
+    {
+        return shared_from_this();
+    }
 
-    Subscription(std::shared_ptr<persistent_data::UserSubscription> userSubIn,
-                 const boost::urls::url_view_base& url,
-                 boost::asio::io_context& ioc) :
+    explicit Subscription(
+        std::shared_ptr<persistent_data::UserSubscription> userSubIn,
+        const boost::urls::url_view_base& url, boost::asio::io_context& ioc) :
         userSub{userSubIn}, policy(std::make_shared<crow::ConnectionPolicy>())
     {
         userSub->destinationUrl = url;
@@ -320,16 +339,35 @@ class Subscription : std::enable_shared_from_this<Subscription>
 
         if (client)
         {
+            BMCWEB_LOG_ERROR("Before getGlobalSubscription");
+
+            // auto self = shared_from_this();
+            const std::string& id = userSub->id;
+            std::shared_ptr<Subscription> self = getGlobalSubscription(id);
+            if (self == nullptr)
+            {
+                BMCWEB_LOG_ERROR(
+                    "TEST:  sendEventToSubscriber self is NOT found for id={}",
+                    id);
+                return false;
+            }
+            BMCWEB_LOG_ERROR("After getGlobalSubscription");
+
             BMCWEB_LOG_ERROR("Before shared_from_this");
-            auto self = shared_from_this();
+            auto self2 = shared_from_this();
             BMCWEB_LOG_ERROR("After shared_from_this");
+            if (self2 != nullptr)
+            {
+                BMCWEB_LOG_ERROR(
+                    "TEST: self2 != nullptr after shared_from_this ");
+            }
+
             client->sendDataWithCallback(
                 std::move(msg), userSub->destinationUrl,
                 static_cast<ensuressl::VerifyCertificate>(
                     userSub->verifyCertificate),
                 userSub->httpHeaders, boost::beast::http::verb::post,
-                std::bind_front(&Subscription::resHandler, this,
-                                shared_from_this()));
+                std::bind_front(&Subscription::resHandler, this, self));
             return true;
         }
 
@@ -591,6 +629,9 @@ class EventServiceManager
             std::shared_ptr<persistent_data::UserSubscription> newSub =
                 it.second;
 
+            std::string id = newSub->id;
+            BMCWEB_LOG_ERROR("TEST: initConfig  id={}", id);
+
             boost::system::result<boost::urls::url> url =
                 boost::urls::parse_absolute_uri(newSub->destinationUrl);
 
@@ -600,14 +641,28 @@ class EventServiceManager
                     "Failed to validate and split destination url");
                 continue;
             }
+
             std::shared_ptr<Subscription> subValue =
                 std::make_shared<Subscription>(newSub, *url, ioc);
-            std::string id = subValue->userSub->id;
-            subValue->deleter = [id]() {
-                EventServiceManager::getInstance().deleteSubscription(id);
-            };
+
+            BMCWEB_LOG_ERROR(
+                "TEST: initConfig before emplace and before shared_from_this, subValue.use_count = {}",
+                subValue.use_count());
+
+#if 0
+            auto weakSelf = subValue->getWeakPtr().lock();
+            BMCWEB_LOG_ERROR("TEST: initConfig after weakSelf null? = {}",  (weakSelf == nullptr) );
+#endif
+
+            auto subSelf = subValue->getSharedPtr();
+            BMCWEB_LOG_ERROR(
+                "TEST: initConfig after emplace and after shared_from_this");
 
             subscriptionsMap.emplace(id, subValue);
+
+            subValue->deleter = [subValue, id]() {
+                EventServiceManager::getInstance().deleteSubscription(id);
+            };
 
             updateNoOfSubscribersCount();
 
@@ -768,8 +823,8 @@ class EventServiceManager
             for (const auto& it :
                  EventServiceManager::getInstance().subscriptionsMap)
             {
-                Subscription& entry = *it.second;
-                entry.updateRetryConfig(retryAttempts, retryTimeoutInterval);
+                std::shared_ptr<Subscription> entry = it.second;
+                entry->updateRetryConfig(retryAttempts, retryTimeoutInterval);
             }
         }
     }
@@ -814,7 +869,7 @@ class EventServiceManager
             BMCWEB_LOG_ERROR("No subscription exist with ID:{}", id);
             return nullptr;
         }
-        std::shared_ptr<Subscription> subValue = obj->second;
+        std::shared_ptr<Subscription> subValue = obj->second->getSharedPtr();
         return subValue;
     }
 
@@ -1345,10 +1400,10 @@ class EventServiceManager
         for (const auto& it :
              EventServiceManager::getInstance().subscriptionsMap)
         {
-            Subscription& entry = *it.second;
-            if (entry.userSub->eventFormatType == metricReportFormatType)
+            std::shared_ptr<Subscription> entry = it.second;
+            if (entry->userSub->eventFormatType == metricReportFormatType)
             {
-                entry.filterAndSendReports(id, *readings);
+                entry->filterAndSendReports(id, *readings);
             }
         }
     }
@@ -1380,5 +1435,13 @@ class EventServiceManager
             *crow::connections::systemBus, matchStr, getReadingsForReport);
     }
 };
+
+static std::shared_ptr<Subscription>
+    getGlobalSubscription(const std::string& id)
+{
+    std::shared_ptr<Subscription> self =
+        EventServiceManager::getInstance().getSubscription(id);
+    return self;
+}
 
 } // namespace redfish
