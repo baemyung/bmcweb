@@ -284,6 +284,9 @@ class Subscription : public std::enable_shared_from_this<Subscription>
         BMCWEB_LOG_DEBUG("Response handled with return code: {}",
                          res.resultInt());
 
+        BMCWEB_LOG_ERROR("TEST: Response handled with return code: {}",
+                         res.resultInt());
+
         if (!client)
         {
             BMCWEB_LOG_ERROR(
@@ -293,16 +296,26 @@ class Subscription : public std::enable_shared_from_this<Subscription>
 
         if (userSub.retryPolicy != "TerminateAfterRetries")
         {
+            BMCWEB_LOG_ERROR("TEST: resHandler retry={} ... return", userSub.retryPolicy);
             return;
         }
         if (client->isTerminated())
         {
             BMCWEB_LOG_INFO("Subscription {} is deleted after MaxRetryAttempts",
                             userSub.id);
+            BMCWEB_LOG_INFO(
+                "Subscription {} is BEFORE deleted after MaxRetryAttempts",
+                userSub.id);
             if (deleter)
             {
+                BMCWEB_LOG_INFO("Subscription {} is calling deleter",
+                                userSub.id);
                 deleter();
             }
+
+            BMCWEB_LOG_INFO(
+                "Subscription {} AFTER is deleted after MaxRetryAttempts",
+                userSub.id);
         }
     }
 
@@ -597,8 +610,11 @@ class EventServiceManager
             std::shared_ptr<Subscription> subValue =
                 std::make_shared<Subscription>(newSub, *url, ioc);
             std::string id = subValue->userSub.id;
+            BMCWEB_LOG_ERROR("TEST: setup deleter for id={}", id);
             subValue->deleter = [id]() {
+                BMCWEB_LOG_ERROR("TEST: deleter begin for id={}", id);
                 EventServiceManager::getInstance().deleteSubscription(id);
+                BMCWEB_LOG_ERROR("TEST: deleter end for id={}", id);
             };
 
             subscriptionsMap.emplace(id, subValue);
@@ -924,6 +940,7 @@ class EventServiceManager
 
     bool deleteSubscription(const std::string& id)
     {
+        BMCWEB_LOG_ERROR("TEST: deleteSubscription id={} START", id);
         auto obj = subscriptionsMap.find(id);
         if (obj == subscriptionsMap.end())
         {
@@ -931,6 +948,10 @@ class EventServiceManager
             return false;
         }
         subscriptionsMap.erase(obj);
+
+        BMCWEB_LOG_ERROR(
+            "TEST: deleteSubscription id={} MIDDLE to work on subscriptionsConfigMap",
+            id);
         auto& event = persistent_data::EventServiceStore::getInstance();
         auto persistentObj = event.subscriptionsConfigMap.find(id);
         if (persistentObj == event.subscriptionsConfigMap.end())
@@ -938,6 +959,8 @@ class EventServiceManager
             BMCWEB_LOG_ERROR("Subscription wasn't in persistent data");
             return true;
         }
+        BMCWEB_LOG_ERROR(
+            "TEST: deleteSubscription id={} subscriptionsConfigMap ERASE", id);
         persistent_data::EventServiceStore::getInstance()
             .subscriptionsConfigMap.erase(persistentObj);
         updateNoOfSubscribersCount();
