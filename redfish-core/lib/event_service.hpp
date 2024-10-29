@@ -695,6 +695,9 @@ inline void requestRoutesEventDestinationCollection(App& app)
             messages::created(asyncResp->res);
             asyncResp->res.addHeader(
                 "Location", "/redfish/v1/EventService/Subscriptions/" + id);
+
+            // schedule a heartbeat
+            subValue->scheduleNextHeartbeatIfNeeded();
         });
 }
 

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #pragma once
+#include "dbus_singleton.hpp"
 #include "dbus_utility.hpp"
 #include "error_messages.hpp"
 #include "event_matches_filter.hpp"
@@ -21,6 +22,7 @@ limitations under the License.
 #include "filter_expr_executor.hpp"
 #include "generated/enums/event.hpp"
 #include "generated/enums/log_entry.hpp"
+#include "heartbeat_messages.hpp"
 #include "http_client.hpp"
 #include "metric_report.hpp"
 #include "ossl_random.hpp"
@@ -35,6 +37,7 @@ limitations under the License.
 #include <sys/inotify.h>
 
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/container/flat_map.hpp>
 #include <boost/url/format.hpp>
@@ -263,16 +266,20 @@ class Subscription : public std::enable_shared_from_this<Subscription>
     Subscription(const persistent_data::UserSubscription& userSubIn,
                  const boost::urls::url_view_base& url,
                  boost::asio::io_context& ioc) :
-        userSub(userSubIn), policy(std::make_shared<crow::ConnectionPolicy>())
+        userSub(userSubIn), policy(std::make_shared<crow::ConnectionPolicy>()),
+        hbTimer(ioc)
     {
+        BMCWEB_LOG_ERROR("TEST: Subscription CTOR BEGIN");
         userSub.destinationUrl = url;
         client.emplace(ioc, policy);
         // Subscription constructor
         policy->invalidResp = retryRespHandler;
+        BMCWEB_LOG_ERROR("TEST: Subscription CTOR END");
     }
 
     explicit Subscription(crow::sse_socket::Connection& connIn) :
-        sseConn(&connIn)
+        sseConn(&connIn),
+        hbTimer(crow::connections::systemBus->get_io_context())
     {}
 
     ~Subscription() = default;
@@ -297,6 +304,9 @@ class Subscription : public std::enable_shared_from_this<Subscription>
         }
         if (client->isTerminated())
         {
+            BMCWEB_LOG_ERROR(
+                "TEST: Subscription resHandler isTerminated...cancel hbTimer");
+            hbTimer.cancel();
             if (deleter)
             {
                 BMCWEB_LOG_INFO(
@@ -304,21 +314,75 @@ class Subscription : public std::enable_shared_from_this<Subscription>
                     userSub.id);
                 deleter();
             }
+            BMCWEB_LOG_ERROR(
+                "TEST: Subscription resHandler isTerminated...cancel hbTimer...done");
+        }
+    }
+
+    void scheduleNextHeartbeatIfNeeded()
+    {
+        BMCWEB_LOG_ERROR("TEST: scheduleNextHeartbeatIfNeeded");
+        hbTimer.cancel();
+        // if (userSub.subscriptionType != subscriptionTypeSSE &&
+        // userSub.heartbeat)
+        if (userSub.subscriptionType != subscriptionTypeSSE)
+        {
+            hbTimer.expires_after(std::chrono::seconds(5));
+            hbTimer.async_wait(std::bind_front(&Subscription::onHbTimeout, this,
+                                               weak_from_this()));
+        }
+    }
+
+    void onHbTimeout(const std::weak_ptr<Subscription>& weakSelf,
+                     const boost::system::error_code& ec)
+    {
+        BMCWEB_LOG_ERROR("TEST: onHbTimeout, ec={}", ec);
+
+        std::shared_ptr<Subscription> self = weakSelf.lock();
+        if (!self)
+        {
+            BMCWEB_LOG_CRITICAL("onHbTimeout failed on Subscription");
+            return;
+        }
+
+        if (!ec)
+        {
+            // Timer expired.
+            BMCWEB_LOG_ERROR("TEST: onHbTimeout - timer expired");
+            // send the heartbeat message
+            nlohmann::json msg = messages::redfishServiceFunctional();
+            std::string strMsg = msg.dump(
+                2, ' ', true, nlohmann::json::error_handler_t::replace);
+
+            sendEventToSubscriber(std::move(strMsg));
+
+            BMCWEB_LOG_ERROR("TEST: onHbTimeout - msg after sendEvent");
+            // reschedule heartbeat timer
+            scheduleNextHeartbeatIfNeeded();
         }
     }
 
     bool sendEventToSubscriber(std::string&& msg)
     {
+        BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber BEGIN");
+
         persistent_data::EventServiceConfig eventServiceConfig =
             persistent_data::EventServiceStore::getInstance()
                 .getEventServiceConfig();
+
+        BMCWEB_LOG_ERROR(
+            "TEST: sendEventToSubscriber MID after getEventServiceConfig");
+
         if (!eventServiceConfig.enabled)
         {
+            BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber END false");
             return false;
         }
 
         if (client)
         {
+            BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber MID true 111");
+
             client->sendDataWithCallback(
                 std::move(msg), userSub.destinationUrl,
                 static_cast<ensuressl::VerifyCertificate>(
@@ -326,6 +390,12 @@ class Subscription : public std::enable_shared_from_this<Subscription>
                 userSub.httpHeaders, boost::beast::http::verb::post,
                 std::bind_front(&Subscription::resHandler, this,
                                 shared_from_this()));
+            BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber MID true 222");
+
+            // heartbeat timer
+            scheduleNextHeartbeatIfNeeded();
+
+            BMCWEB_LOG_ERROR("TEST: sendEventToSubscriber END true zzzz");
             return true;
         }
 
@@ -509,6 +579,7 @@ class Subscription : public std::enable_shared_from_this<Subscription>
 
   public:
     std::optional<filter_ast::LogicalAnd> filter;
+    boost::asio::steady_timer hbTimer;
 };
 
 class EventServiceManager
@@ -560,6 +631,8 @@ class EventServiceManager
 
     void initConfig()
     {
+        BMCWEB_LOG_ERROR("TEST: initConfig BEGIN");
+
         loadOldBehavior();
 
         persistent_data::EventServiceConfig eventServiceConfig =
@@ -602,7 +675,11 @@ class EventServiceManager
 
             // Update retry configuration.
             subValue->updateRetryConfig(retryAttempts, retryTimeoutInterval);
+
+            // schedule a heartbeat
+            subValue->scheduleNextHeartbeatIfNeeded();
         }
+        BMCWEB_LOG_ERROR("TEST: initConfig END");
     }
 
     static void loadOldBehavior()
@@ -756,6 +833,8 @@ class EventServiceManager
             {
                 Subscription& entry = *it.second;
                 entry.updateRetryConfig(retryAttempts, retryTimeoutInterval);
+                // schedule a heartbeat if needed
+                entry.scheduleNextHeartbeatIfNeeded();
             }
         }
     }
@@ -922,7 +1001,17 @@ class EventServiceManager
             BMCWEB_LOG_WARNING("Could not find subscription with id {}", id);
             return false;
         }
+        // cancel heartbeat
+        if (obj->second != nullptr)
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST: Subscription deleteSubscription...cancel hbTimer");
+            obj->second->hbTimer.cancel();
+            BMCWEB_LOG_ERROR(
+                "TEST: Subscription deleteSubscription...cancel hbTimer...done");
+        }
         subscriptionsMap.erase(obj);
+
         auto& event = persistent_data::EventServiceStore::getInstance();
         auto persistentObj = event.subscriptionsConfigMap.find(id);
         if (persistentObj == event.subscriptionsConfigMap.end())
