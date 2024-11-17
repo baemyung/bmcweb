@@ -30,6 +30,25 @@
 #include <string>
 #include <string_view>
 
+#include     "http/mutual_tls.cpp"
+#include     "redfish-core/src/error_messages.cpp"
+#include     "redfish-core/src/filter_expr_executor.cpp"
+#include     "redfish-core/src/filter_expr_printer.cpp"
+#include     "redfish-core/src/redfish.cpp"
+#include     "redfish-core/src/registries.cpp"
+#include     "redfish-core/src/subscription.cpp"
+#include     "redfish-core/src/utils/dbus_utils.cpp"
+#include     "redfish-core/src/utils/json_utils.cpp"
+#include     "redfish-core/src/utils/time_utils.cpp"
+#include     "src/boost_asio.cpp"
+#include     "src/boost_asio_ssl.cpp"
+#include     "src/boost_beast.cpp"
+#include     "src/dbus_singleton.cpp"
+#include     "src/json_html_serializer.cpp"
+#include     "src/ossl_random.cpp"
+#include     "src/ssl_key_handler.cpp"
+
+
 static void setLogLevel(const std::string& logLevel)
 {
     const std::basic_string_view<char>* iter =
