@@ -49,6 +49,8 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include "event_service_manager.cpp"
+
 namespace redfish
 {
 
