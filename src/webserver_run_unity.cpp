@@ -5,7 +5,6 @@
 #include "redfish-core/src/redfish.cpp"
 #include "redfish-core/src/registries.cpp"
 #include "redfish-core/src/subscription.cpp"
-#include "redfish-core/src/event_service_manager.cpp"
 #include "redfish-core/src/utils/dbus_utils.cpp"
 #include "redfish-core/src/utils/json_utils.cpp"
 #include "redfish-core/src/utils/time_utils.cpp"
