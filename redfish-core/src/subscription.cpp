@@ -113,9 +113,10 @@ void Subscription::sendHeartbeatEvent()
     boost::container::flat_map<std::string, std::shared_ptr<Subscription>>
         selfSubsMap{std::pair(userSub->id, shared_from_this())};
 
-    std::string_view origin{};
+    std::string origin =
+        std::format("/redfish/v1/EventService/Subscriptions/{}", userSub->id);
     EventServiceManager::getInstance().sendEventToSubscriptionsMap(
-        event, origin, "", selfSubsMap);
+        event, origin, "Heartbeat", selfSubsMap);
 }
 
 void Subscription::scheduleNextHeartbeatEvent()

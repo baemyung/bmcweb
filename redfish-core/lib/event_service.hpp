@@ -45,13 +45,13 @@ namespace redfish
 
 static constexpr const std::array<const char*, 2> supportedEvtFormatTypes = {
     eventFormatType, metricReportFormatType};
-static constexpr const std::array<const char*, 3> supportedRegPrefixes = {
-    "Base", "OpenBMC", "TaskEvent"};
+static constexpr const std::array<const char*, 4> supportedRegPrefixes = {
+    "Base", "OpenBMC", "TaskEvent", "HeartbeatEvent"};
 static constexpr const std::array<const char*, 3> supportedRetryPolicies = {
     "TerminateAfterRetries", "SuspendRetries", "RetryForever"};
 
-static constexpr const std::array<const char*, 1> supportedResourceTypes = {
-    "Task"};
+static constexpr const std::array<const char*, 2> supportedResourceTypes = {
+    "Task", "Heartbeat"};
 
 inline void requestRoutesEventService(App& app)
 {
