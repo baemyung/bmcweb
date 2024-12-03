@@ -126,6 +126,16 @@ void Subscription::scheduleNextHeartbeatEvent()
         std::bind_front(&Subscription::onHbTimeout, this, weak_from_this()));
 }
 
+void Subscription::heartbeatParametersChanged()
+{
+    hbTimer.cancel();
+
+    if (userSub->sendHeartbeat)
+    {
+        scheduleNextHeartbeatEvent();
+    }
+}
+
 void Subscription::onHbTimeout(const std::weak_ptr<Subscription>& weakSelf,
                                const boost::system::error_code& ec)
 {
@@ -141,8 +151,8 @@ void Subscription::onHbTimeout(const std::weak_ptr<Subscription>& weakSelf,
     }
     if (ec)
     {
-        BMCWEB_LOG_ERROR("heartbeat timer async_wait failed: {}", ec);
-        // If the timer fails, it is treated as timer expires
+        BMCWEB_LOG_CRITICAL("heartbeat timer async_wait failed: {}", ec);
+        return;
     }
 
     std::shared_ptr<Subscription> self = weakSelf.lock();

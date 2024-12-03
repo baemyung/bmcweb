@@ -885,20 +885,15 @@ inline void requestRoutesEventDestination(App& app)
                     subValue->userSub->verifyCertificate = *verifyCertificate;
                 }
 
-                EventServiceManager::getInstance().updateSubscriptionData();
-
                 // if Heartbeat interval or send heart were changed, cancel the
                 // heartbeat timer if running and start a new heartbeat if
                 // needed
                 if (hbIntervalMinutes || sendHeartbeat)
                 {
-                    subValue->hbTimer.cancel();
-
-                    if (subValue->userSub->sendHeartbeat)
-                    {
-                        subValue->scheduleNextHeartbeatEvent();
-                    }
+                    subValue->heartbeatParametersChanged();
                 }
+
+                EventServiceManager::getInstance().updateSubscriptionData();
             });
     BMCWEB_ROUTE(app, "/redfish/v1/EventService/Subscriptions/<str>/")
         // The below privilege is wrong, it should be ConfigureManager OR

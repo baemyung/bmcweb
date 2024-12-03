@@ -52,9 +52,12 @@ inline void handleMessageRegistryFileCollectionGet(
         "Collection of MessageRegistryFiles";
 
     nlohmann::json& members = asyncResp->res.jsonValue["Members"];
-    for (const char* memberName :
-         std::to_array({"Base", "TaskEvent", "ResourceEvent", "OpenBMC",
-                        "Telemetry", "HeartbeatEvent"}))
+
+    static constexpr const auto registryFiles = std::to_array(
+        {"Base", "TaskEvent", "ResourceEvent", "OpenBMC", "Telemetry",
+         "HeartbeatEvent"});
+
+    for (const char* memberName : registryFiles)
     {
         nlohmann::json::object_t member;
         member["@odata.id"] =
