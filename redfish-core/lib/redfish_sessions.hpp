@@ -327,10 +327,13 @@ inline void handleSessionCollectionPost(
                       const boost::system::error_code& ec, bool required) {
             if (ec)
             {
-                BMCWEB_LOG_ERROR("secretKeyRequired check failed = {}",
-                                 ec.message());
-                messages::internalError(asyncResp->res);
-                return;
+                if (ec.value() != EBADR)
+                {
+                    BMCWEB_LOG_ERROR("secretKeyRequired check failed = {}",
+                                     ec.message());
+                    messages::internalError(asyncResp->res);
+                    return;
+                }
             }
             std::shared_ptr<persistent_data::UserSession> session =
                 persistent_data::SessionStore::getInstance()
