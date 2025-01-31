@@ -4,6 +4,9 @@
 
 #include "logging.hpp"
 
+// NOLINTNEXTLINE(modernize-deprecated-headers)
+#include <string.h>
+
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/connect_pipe.hpp>
 #include <boost/asio/io_context.hpp>
@@ -24,8 +27,6 @@ class CredentialsPipe
     {
         boost::system::error_code ec;
 
-        // Unclear why tidy complains here.
-        // NOLINTNEXTLINE(misc-include-cleaner)
         boost::asio::connect_pipe(read, impl, ec);
         if (ec)
         {
@@ -40,7 +41,6 @@ class CredentialsPipe
 
     ~CredentialsPipe()
     {
-        // NOLINTNEXTLINE(misc-include-cleaner)
         explicit_bzero(user.data(), user.capacity());
         explicit_bzero(pass.data(), pass.capacity());
     }
