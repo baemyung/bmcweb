@@ -220,7 +220,7 @@ inline void linkAssociatedProcessor(
 
 inline void addPCIeSlotProperties(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& pcieSlotPath, const boost::system::error_code& ec,
+    const boost::system::error_code& ec,
     const dbus::utility::DBusPropertiesMap& pcieSlotProperties)
 {
     if (ec)
@@ -284,7 +284,7 @@ inline void addPCIeSlotProperties(
     }
 
     // Get processor link
-    linkAssociatedProcessor(asyncResp, pcieSlotPath);
+    // linkAssociatedProcessor(asyncResp, pcieSlotPath);
 }
 
 inline void getPCIeDeviceSlotPath(
@@ -346,11 +346,10 @@ inline void afterGetDbusObject(
     dbus::utility::getAllProperties(
         object.begin()->first, pcieDeviceSlot,
         "xyz.openbmc_project.Inventory.Item.PCIeSlot",
-        [asyncResp, pcieDeviceSlot](
+        [asyncResp](
             const boost::system::error_code& ec2,
             const dbus::utility::DBusPropertiesMap& pcieSlotProperties) {
-            addPCIeSlotProperties(asyncResp, pcieDeviceSlot, ec2,
-                                  pcieSlotProperties);
+            addPCIeSlotProperties(asyncResp, ec2, pcieSlotProperties);
         });
 }
 
@@ -483,6 +482,75 @@ inline void getPCIeDeviceAsset(
                 asyncResp->res.jsonValue["SparePartNumber"] = *sparePartNumber;
             }
         });
+}
+
+inline void afterGetLinkAssociatedProcessor(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const boost::system::error_code& ec,
+    const dbus::utility::MapperGetSubTreePathsResponse& processorPaths)
+{
+    BMCWEB_LOG_ERROR("TEST: afterGetLinkAssociatedProcessor BEGIN");
+
+    if (ec)
+    {
+        if (ec.value() == EBADR)
+        {
+            BMCWEB_LOG_DEBUG("No processor association found");
+            return;
+        }
+        BMCWEB_LOG_ERROR("DBUS response error {}", ec.value());
+        messages::internalError(asyncResp->res);
+        return;
+    }
+
+    if (processorPaths.empty())
+    {
+        BMCWEB_LOG_DEBUG("No association found for processor");
+        return;
+    }
+
+    nlohmann::json& processorList =
+        asyncResp->res.jsonValue["Links"]["Processors"];
+    for (const std::string& processorPath : processorPaths)
+    {
+        std::string processorName =
+            sdbusplus::message::object_path(processorPath).filename();
+        if (processorName.empty())
+        {
+            continue;
+        }
+
+        BMCWEB_LOG_ERROR("TEST: afterGetLinkAssociatedProcessor proc={}",
+                         processorName);
+
+        nlohmann::json item = nlohmann::json::object();
+        item["@odata.id"] = boost::urls::format(
+            "/redfish/v1/Systems/system/Processors/{}", processorName);
+        processorList.emplace_back(std::move(item));
+    }
+
+    asyncResp->res.jsonValue["Links"]["Processors@odata.count"] =
+        processorList.size();
+}
+
+inline void getLinkAssociatedProcessor(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& pcieDevicePath)
+{
+    // DEBUG DEBUG========
+    BMCWEB_LOG_ERROR("TEST: getLinkAssociatedProcessor BEGIN");
+
+    static constexpr std::array<std::string_view, 1> processorInterfaces{
+        "xyz.openbmc_project.Inventory.Item.Cpu"};
+
+    dbus::utility::getAssociatedSubTreePaths(
+        pcieDevicePath + "/connected_to",
+        sdbusplus::message::object_path("/xyz/openbmc_project/inventory"), 0,
+        processorInterfaces,
+        std::bind_front(afterGetLinkAssociatedProcessor, asyncResp));
+
+    BMCWEB_LOG_ERROR("TEST: getLinkAssociatedProcessor END");
+    // DEBUG DEBUG========
 }
 
 inline void addPCIeDeviceProperties(
@@ -632,9 +700,11 @@ inline void afterGetValidPcieDevicePath(
     getPCIeDeviceAsset(asyncResp, pcieDevicePath, service);
     getPCIeDeviceState(asyncResp, pcieDevicePath, service);
     getPCIeDeviceHealth(asyncResp, pcieDevicePath, service);
+    getLinkAssociatedProcessor(asyncResp, pcieDevicePath);
     getPCIeDeviceProperties(
         asyncResp, pcieDevicePath, service,
         std::bind_front(addPCIeDeviceProperties, asyncResp, pcieDeviceId));
+
     getPCIeDeviceSlotPath(
         pcieDevicePath, asyncResp,
         std::bind_front(afterGetPCIeDeviceSlotPath, asyncResp));
