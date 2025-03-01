@@ -135,6 +135,8 @@ inline void handlePCIeDeviceCollectionGet(
         return;
     }
 
+    BMCWEB_LOG_ERROR("TEST: handlePCIeDeviceCollectionGet");
+
     asyncResp->res.addHeader(boost::beast::http::field::link,
                              "</redfish/v1/JsonSchemas/PCIeDeviceCollection/"
                              "PCIeDeviceCollection.json>; rel=describedby");
