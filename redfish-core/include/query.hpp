@@ -104,9 +104,20 @@ inline bool handleIfMatch(crow::App& app, const crow::Request& req,
     // Ideally we would have a shared_ptr to the original Request which we could
     // modify to remove the If-Match and restart it. But instead we have to make
     // a full copy to restart it.
+
+#if defined(REDO_NEEDED)
     getReqAsyncResp->res.setCompleteRequestHandler(std::bind_front(
         afterIfMatchRequest, std::ref(app), asyncResp,
         std::make_shared<crow::Request>(req), std::move(ifMatch)));
+#else
+    std::error_code ec1;
+    auto localReq =
+        std::make_shared<crow::Request>(crow::Request::Body{req.reqBody}, ec1);
+
+    getReqAsyncResp->res.setCompleteRequestHandler(
+        std::bind_front(afterIfMatchRequest, std::ref(app), asyncResp, localReq,
+                        std::move(ifMatch)));
+#endif
 
     app.handle(getReq, getReqAsyncResp);
     return false;

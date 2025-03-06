@@ -2281,7 +2281,7 @@ inline void handleAccountPatch(
     crow::connections::systemBus->async_method_call(
         [asyncResp, username, password(std::move(password)),
          roleId(std::move(roleId)), enabled, newUser{std::string(*newUserName)},
-         locked, userSelf, req, accountTypes(std::move(accountTypes))](
+         locked, userSelf, &req, accountTypes(std::move(accountTypes))](
             const boost::system::error_code& ec, sdbusplus::message_t& m) {
             if (ec)
             {

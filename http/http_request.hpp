@@ -53,7 +53,7 @@ struct Request
 
     Request() = default;
 
-    Request(const Request& other) = default;
+    Request(const Request& other) = delete;
     Request(Request&& other) = default;
 
     Request& operator=(const Request&) = default;
