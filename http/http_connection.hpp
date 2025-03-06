@@ -307,12 +307,12 @@ class Connection :
         bool isWebsocket = false;
         bool isH2c = false;
         // Check connection header is upgrade
-        if (token_list{req->req[field::connection]}.exists("upgrade"))
+        if (token_list{req->reqBody[field::connection]}.exists("upgrade"))
         {
             BMCWEB_LOG_DEBUG("{} Connection: Upgrade header was present",
                              logPtr(this));
             // Parse if upgrade is h2c or websocket
-            token_list upgrade{req->req[field::upgrade]};
+            token_list upgrade{req->reqBody[field::upgrade]};
             isWebsocket = upgrade.exists("websocket");
             isH2c = upgrade.exists("h2c");
             BMCWEB_LOG_DEBUG("{} Upgrade isWebsocket: {} isH2c: {}",
@@ -321,7 +321,8 @@ class Connection :
 
         if (BMCWEB_EXPERIMENTAL_HTTP2 && isH2c)
         {
-            std::string_view base64settings = req->req[field::http2_settings];
+            std::string_view base64settings =
+                req->reqBody[field::http2_settings];
             if (utility::base64Decode<true>(base64settings, http2settings))
             {
                 res.result(boost::beast::http::status::switching_protocols);
@@ -331,7 +332,7 @@ class Connection :
         }
 
         // websocket and SSE are only allowed on GET
-        if (req->req.method() == boost::beast::http::verb::get)
+        if (req->reqBody.method() == boost::beast::http::verb::get)
         {
             if (isWebsocket || isSse)
             {

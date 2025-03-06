@@ -298,7 +298,7 @@ class HTTP2Connection :
         if constexpr (!BMCWEB_INSECURE_DISABLE_AUTH)
         {
             thisReq.session = crow::authentication::authenticate(
-                {}, asyncResp->res, thisReq.method(), thisReq.req, nullptr);
+                {}, asyncResp->res, thisReq.method(), thisReq.reqBody, nullptr);
             if (!crow::authentication::isOnAllowlist(thisReq.url().path(),
                                                      thisReq.method()) &&
                 thisReq.session == nullptr)
@@ -337,9 +337,9 @@ class HTTP2Connection :
             thisStream->second.reqReader;
         if (!reqReader)
         {
-            reqReader.emplace(
-                bmcweb::HttpBody::reader(thisStream->second.req->req.base(),
-                                         thisStream->second.req->req.body()));
+            reqReader.emplace(bmcweb::HttpBody::reader(
+                thisStream->second.req->reqBody.base(),
+                thisStream->second.req->reqBody.body()));
         }
         boost::beast::error_code ec;
         reqReader->put(boost::asio::const_buffer(data, len), ec);
