@@ -38,7 +38,8 @@ struct Request
     std::shared_ptr<persistent_data::UserSession> session;
 
     std::string userRole;
-    Request(Body reqBodyIn, std::error_code& ec) : reqBody(std::move(reqBodyIn))
+    Request(Body&& reqBodyIn, std::error_code& ec) :
+        reqBody(std::move(reqBodyIn))
     {
         if (!setUrlInfo())
         {

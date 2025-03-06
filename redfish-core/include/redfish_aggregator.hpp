@@ -596,7 +596,8 @@ class RedfishAggregator
 
         // Create a copy of thisReq so we we can still locally process the req
         std::error_code ec;
-        auto localReq = std::make_shared<crow::Request>(thisReq.reqBody, ec);
+        auto localReq = std::make_shared<crow::Request>(
+            crow::Request::Body{thisReq.reqBody}, ec);
         if (ec)
         {
             BMCWEB_LOG_ERROR("Failed to create copy of request");
