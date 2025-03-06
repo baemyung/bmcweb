@@ -278,6 +278,12 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
 
     void sendMessage()
     {
+        BMCWEB_LOG_ERROR(
+            "TEST: sizeof(PendingRequest)={}, sizeof(request<bmcweb::HttpBody>)={}, sizeof(bmcweb::HttpBody)={} ",
+            sizeof(PendingRequest),
+            sizeof(boost::beast::http::request<bmcweb::HttpBody>),
+            sizeof(bmcweb::HttpBody));
+
         state = ConnState::sendInProgress;
 
         // Set a timeout on the operation

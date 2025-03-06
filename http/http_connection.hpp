@@ -206,6 +206,11 @@ class Connection :
 
     void start()
     {
+        BMCWEB_LOG_ERROR(
+            "TEST2: sizeof(request<bmcweb::HttpBody>)={}, sizeof(bmcweb::HttpBody)={} ",
+            sizeof(boost::beast::http::request<bmcweb::HttpBody>),
+            sizeof(bmcweb::HttpBody));
+
         BMCWEB_LOG_DEBUG("{} Connection started, total {}", logPtr(this),
                          connectionCount);
         if (connectionCount >= 200)
