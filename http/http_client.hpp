@@ -124,12 +124,12 @@ struct ConnectionPolicy
 
 struct PendingRequest
 {
-    boost::beast::http::request<bmcweb::HttpBody> req;
+    boost::beast::http::request<bmcweb::HttpBody> reqBody;
     std::function<void(bool, uint32_t, Response&)> callback;
     PendingRequest(
-        boost::beast::http::request<bmcweb::HttpBody>&& reqIn,
+        boost::beast::http::request<bmcweb::HttpBody>&& reqBodyIn,
         const std::function<void(bool, uint32_t, Response&)>& callbackIn) :
-        req(std::move(reqIn)), callback(callbackIn)
+        reqBody(std::move(reqBodyIn)), callback(callbackIn)
     {}
 };
 
@@ -145,7 +145,7 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
     ensuressl::VerifyCertificate verifyCert;
     uint32_t connId;
     // Data buffers
-    http::request<bmcweb::HttpBody> req;
+    http::request<bmcweb::HttpBody> reqBody;
     using parser_type = http::response_parser<bmcweb::HttpBody>;
     std::optional<parser_type> parser;
     boost::beast::flat_static_buffer<httpReadBufferSize> buffer;
@@ -293,14 +293,14 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         if (sslConn)
         {
             boost::beast::http::async_write(
-                *sslConn, req,
+                *sslConn, reqBody,
                 std::bind_front(&ConnectionInfo::afterWrite, this,
                                 shared_from_this()));
         }
         else
         {
             boost::beast::http::async_write(
-                conn, req,
+                conn, reqBody,
                 std::bind_front(&ConnectionInfo::afterWrite, this,
                                 shared_from_this()));
         }
@@ -680,7 +680,7 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
         }
 
         PendingRequest& nextReq = requestQueue.front();
-        conn.req = std::move(nextReq.req);
+        conn.reqBody = std::move(nextReq.reqBody);
         conn.callback = std::move(nextReq.callback);
 
         BMCWEB_LOG_DEBUG("Setting properties for connection {}, id: {}",
@@ -744,13 +744,13 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
                   const std::function<void(Response&)>& resHandler)
     {
         // Construct the request to be sent
-        boost::beast::http::request<bmcweb::HttpBody> thisReq(
+        boost::beast::http::request<bmcweb::HttpBody> thisReqBody(
             verb, destUri.encoded_target(), 11, "", httpHeader);
-        thisReq.set(boost::beast::http::field::host,
-                    destUri.encoded_host_address());
-        thisReq.keep_alive(true);
-        thisReq.body().str() = std::move(data);
-        thisReq.prepare_payload();
+        thisReqBody.set(boost::beast::http::field::host,
+                        destUri.encoded_host_address());
+        thisReqBody.keep_alive(true);
+        thisReqBody.body().str() = std::move(data);
+        thisReqBody.prepare_payload();
         auto cb = std::bind_front(&ConnectionPool::afterSendData,
                                   weak_from_this(), resHandler);
         // Reuse an existing connection if one is available
@@ -761,7 +761,7 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
                 (conn->state == ConnState::initialized) ||
                 (conn->state == ConnState::closed))
             {
-                conn->req = std::move(thisReq);
+                conn->reqBody = std::move(thisReqBody);
                 conn->callback = std::move(cb);
                 std::string commonMsg = std::format("{} from pool {}", i, id);
 
@@ -786,7 +786,7 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
         {
             BMCWEB_LOG_DEBUG("Adding new connection to pool {}", id);
             auto conn = addConnection();
-            conn->req = std::move(thisReq);
+            conn->reqBody = std::move(thisReqBody);
             conn->callback = std::move(cb);
             conn->doResolve();
         }
@@ -794,7 +794,7 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
         {
             BMCWEB_LOG_DEBUG("Max pool size reached. Adding data to queue {}",
                              id);
-            requestQueue.emplace_back(std::move(thisReq), std::move(cb));
+            requestQueue.emplace_back(std::move(thisReqBody), std::move(cb));
         }
         else
         {
