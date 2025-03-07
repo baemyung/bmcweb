@@ -301,18 +301,18 @@ class Connection :
         using boost::beast::http::token_list;
 
         bool isSse =
-            isContentTypeAllowed(req->getHeaderValue("Accept"),
+            isContentTypeAllowed(req.getHeaderValue("Accept"),
                                  http_helpers::ContentType::EventStream, false);
 
         bool isWebsocket = false;
         bool isH2c = false;
         // Check connection header is upgrade
-        if (token_list{req->req[field::connection]}.exists("upgrade"))
+        if (token_list{req.req[field::connection]}.exists("upgrade"))
         {
             BMCWEB_LOG_DEBUG("{} Connection: Upgrade header was present",
                              logPtr(this));
             // Parse if upgrade is h2c or websocket
-            token_list upgrade{req->req[field::upgrade]};
+            token_list upgrade{req.req[field::upgrade]};
             isWebsocket = upgrade.exists("websocket");
             isH2c = upgrade.exists("h2c");
             BMCWEB_LOG_DEBUG("{} Upgrade isWebsocket: {} isH2c: {}",
@@ -321,7 +321,7 @@ class Connection :
 
         if (BMCWEB_EXPERIMENTAL_HTTP2 && isH2c)
         {
-            std::string_view base64settings = req->req[field::http2_settings];
+            std::string_view base64settings = req.req[field::http2_settings];
             if (utility::base64Decode<true>(base64settings, http2settings))
             {
                 res.result(boost::beast::http::status::switching_protocols);
@@ -331,7 +331,7 @@ class Connection :
         }
 
         // websocket and SSE are only allowed on GET
-        if (req->req.method() == boost::beast::http::verb::get)
+        if (req.req.method() == boost::beast::http::verb::get)
         {
             if (isWebsocket || isSse)
             {
@@ -373,7 +373,7 @@ class Connection :
         {
             return;
         }
-        req = std::make_shared<crow::Request>(parser->release(), reqEc);
+        req = crow::Request(parser->release(), reqEc);
         if (reqEc)
         {
             BMCWEB_LOG_DEBUG("Request failed to construct{}", reqEc.message());
@@ -381,15 +381,15 @@ class Connection :
             completeRequest(res);
             return;
         }
-        req->session = userSession;
-        accept = req->getHeaderValue("Accept");
+        req.session = userSession;
+        accept = req.getHeaderValue("Accept");
         // Fetch the client IP address
-        req->ipAddress = ip;
+        req.ipAddress = ip;
 
         // Check for HTTP version 1.1.
-        if (req->version() == 11)
+        if (req.version() == 11)
         {
-            if (req->getHeaderValue(boost::beast::http::field::host).empty())
+            if (req.getHeaderValue(boost::beast::http::field::host).empty())
             {
                 res.result(boost::beast::http::status::bad_request);
                 completeRequest(res);
@@ -398,28 +398,28 @@ class Connection :
         }
 
         BMCWEB_LOG_INFO("Request:  {} HTTP/{}.{} {} {} {}", logPtr(this),
-                        req->version() / 10, req->version() % 10,
-                        req->methodString(), req->target(),
-                        req->ipAddress.to_string());
+                        req.version() / 10, req.version() % 10,
+                        req.methodString(), req.target(),
+                        req.ipAddress.to_string());
 
         if (res.completed)
         {
             completeRequest(res);
             return;
         }
-        keepAlive = req->keepAlive();
+        keepAlive = req.keepAlive();
 
         if (authenticationEnabled)
         {
-            if (!crow::authentication::isOnAllowlist(req->url().path(),
-                                                     req->method()) &&
-                req->session == nullptr)
+            if (!crow::authentication::isOnAllowlist(req.url().path(),
+                                                     req.method()) &&
+                req.session == nullptr)
             {
                 BMCWEB_LOG_WARNING("Authentication failed");
                 forward_unauthorized::sendUnauthorized(
-                    req->url().encoded_path(),
-                    req->getHeaderValue("X-Requested-With"),
-                    req->getHeaderValue("Accept"), res);
+                    req.url().encoded_path(),
+                    req.getHeaderValue("X-Requested-With"),
+                    req.getHeaderValue("Accept"), res);
                 completeRequest(res);
                 return;
             }
@@ -436,7 +436,7 @@ class Connection :
             return;
         }
         std::string_view expected =
-            req->getHeaderValue(boost::beast::http::field::if_none_match);
+            req.getHeaderValue(boost::beast::http::field::if_none_match);
         if (!expected.empty())
         {
             res.setExpectedHash(expected);
@@ -816,7 +816,8 @@ class Connection :
 
         userSession = nullptr;
 
-        req->clear();
+        // Destroy the Request via the std::optional
+        req.clear();
         doReadHeaders();
     }
 
@@ -922,7 +923,7 @@ class Connection :
 
     boost::beast::flat_static_buffer<8192> buffer;
 
-    std::shared_ptr<crow::Request> req;
+    crow::Request req;
     std::string accept;
     std::string http2settings;
     crow::Response res;

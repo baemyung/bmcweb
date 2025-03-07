@@ -29,7 +29,7 @@ struct FakeHandler
 {
     template <typename Adaptor>
     static void handleUpgrade(
-        const std::shared_ptr<Request>& /*req*/,
+        Request& /*req*/,
         const std::shared_ptr<bmcweb::AsyncResp>& /*asyncResp*/,
         Adaptor&& /*adaptor*/)
     {
@@ -37,16 +37,16 @@ struct FakeHandler
         EXPECT_FALSE(true);
     }
 
-    void handle(const std::shared_ptr<Request>& req,
+    void handle(Request& req,
                 const std::shared_ptr<bmcweb::AsyncResp>& /*asyncResp*/)
     {
-        EXPECT_EQ(req->method(), boost::beast::http::verb::get);
-        EXPECT_EQ(req->target(), "/");
-        EXPECT_EQ(req->getHeaderValue(boost::beast::http::field::host),
+        EXPECT_EQ(req.method(), boost::beast::http::verb::get);
+        EXPECT_EQ(req.target(), "/");
+        EXPECT_EQ(req.getHeaderValue(boost::beast::http::field::host),
                   "openbmc_project.xyz");
-        EXPECT_FALSE(req->keepAlive());
-        EXPECT_EQ(req->version(), 11);
-        EXPECT_EQ(req->body(), "");
+        EXPECT_FALSE(req.keepAlive());
+        EXPECT_EQ(req.version(), 11);
+        EXPECT_EQ(req.body(), "");
 
         called = true;
     }

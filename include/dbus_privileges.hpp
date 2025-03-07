@@ -157,20 +157,19 @@ inline void requestUserInfo(
 }
 
 inline void validatePrivilege(
-    const std::shared_ptr<Request>& req,
-    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp, BaseRule& rule,
-    std::move_only_function<void()>&& callback)
+    Request& req, const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    BaseRule& rule, std::move_only_function<void()>&& callback)
 {
-    if (req->session == nullptr)
+    if (req.session == nullptr)
     {
         return;
     }
 
     requestUserInfo(
-        req->session->username, asyncResp,
+        req.session->username, asyncResp,
         [req, asyncResp, &rule, callback = std::move(callback)](
             const dbus::utility::DBusPropertiesMap& userInfoMap) mutable {
-            if (afterGetUserInfoValidate(*req, asyncResp, rule, userInfoMap))
+            if (afterGetUserInfoValidate(req, asyncResp, rule, userInfoMap))
             {
                 callback();
             }

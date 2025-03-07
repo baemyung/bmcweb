@@ -83,8 +83,7 @@ TEST(Router, OverlapingRoutes)
     {
         constexpr std::string_view url = "/foo/bar";
 
-        auto req = std::make_shared<Request>(
-            Request::Body{boost::beast::http::verb::get, url, 11}, ec);
+        Request req{{boost::beast::http::verb::get, url, 11}, ec};
 
         std::shared_ptr<bmcweb::AsyncResp> asyncResp =
             std::make_shared<bmcweb::AsyncResp>();
@@ -109,8 +108,7 @@ TEST(Router, 404)
 
     constexpr std::string_view url = "/foo/bar";
 
-    auto req = std::make_shared<Request>(
-        Request::Body{boost::beast::http::verb::get, url, 11}, ec);
+    Request req{{boost::beast::http::verb::get, url, 11}, ec};
 
     router.newRuleTagged<getParameterTag(url)>("/foo/<path>")
         .notFound()(nullCallback);
@@ -140,8 +138,7 @@ TEST(Router, 405)
 
     constexpr std::string_view url = "/foo/bar";
 
-    auto req = std::make_shared<Request>(
-        Request::Body{boost::beast::http::verb::patch, url, 11}, ec);
+    Request req{{boost::beast::http::verb::patch, url, 11}, ec};
 
     router.newRuleTagged<getParameterTag(url)>(std::string(url))
         .methods(boost::beast::http::verb::get)(nullCallback);

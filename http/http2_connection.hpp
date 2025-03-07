@@ -49,7 +49,7 @@ namespace crow
 
 struct Http2StreamData
 {
-    std::shared_ptr<Request> req = std::make_shared<Request>();
+    Request req;
     std::optional<bmcweb::HttpBody::reader> reqReader;
     std::string accept;
     Response res;
@@ -276,7 +276,7 @@ class HTTP2Connection :
                 return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
             }
         }
-        crow::Request& thisReq = *it->second.req;
+        crow::Request& thisReq = it->second.req;
         it->second.accept = thisReq.getHeaderValue("Accept");
 
         BMCWEB_LOG_DEBUG("Handling {} \"{}\"", logPtr(&thisReq),
@@ -318,7 +318,7 @@ class HTTP2Connection :
         {
             asyncResp->res.setExpectedHash(expected);
         }
-        handler->handle(it->second.req, asyncResp);
+        handler->handle(thisReq, asyncResp);
         return 0;
     }
 
@@ -338,8 +338,8 @@ class HTTP2Connection :
         if (!reqReader)
         {
             reqReader.emplace(
-                bmcweb::HttpBody::reader(thisStream->second.req->req.base(),
-                                         thisStream->second.req->req.body()));
+                bmcweb::HttpBody::reader(thisStream->second.req.req.base(),
+                                         thisStream->second.req.req.body()));
         }
         boost::beast::error_code ec;
         reqReader->put(boost::asio::const_buffer(data, len), ec);
@@ -456,7 +456,7 @@ class HTTP2Connection :
             return -1;
         }
 
-        crow::Request& thisReq = *thisStream->second.req;
+        crow::Request& thisReq = thisStream->second.req;
 
         if (nameSv == ":path")
         {

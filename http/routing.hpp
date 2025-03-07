@@ -516,7 +516,7 @@ class Router
         return route;
     }
 
-    FindRouteResponse findRoute(const Request& req) const
+    FindRouteResponse findRoute(Request& req)
     {
         FindRouteResponse findRoute;
 
@@ -563,7 +563,7 @@ class Router
     }
 
     template <typename Adaptor>
-    void handleUpgrade(const std::shared_ptr<Request>& req,
+    void handleUpgrade(Request& req,
                        const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                        Adaptor&& adaptor)
     {
@@ -571,12 +571,11 @@ class Router
         Trie& trie = perMethod.trie;
         std::vector<BaseRule*>& rules = perMethod.rules;
 
-        Trie::FindResult found = trie.find(req->url().encoded_path());
+        Trie::FindResult found = trie.find(req.url().encoded_path());
         unsigned ruleIndex = found.ruleIndex;
         if (ruleIndex == 0U)
         {
-            BMCWEB_LOG_DEBUG("Cannot match rules {}",
-                             req->url().encoded_path());
+            BMCWEB_LOG_DEBUG("Cannot match rules {}", req.url().encoded_path());
             asyncResp->res.result(boost::beast::http::status::not_found);
             return;
         }
@@ -596,14 +595,14 @@ class Router
             req, asyncResp, rule,
             [req, &rule, asyncResp,
              adaptor = std::forward<Adaptor>(adaptor)]() mutable {
-                rule.handleUpgrade(*req, asyncResp, std::move(adaptor));
+                rule.handleUpgrade(req, asyncResp, std::move(adaptor));
             });
     }
 
-    void handle(const std::shared_ptr<Request>& req,
+    void handle(Request& req,
                 const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
     {
-        FindRouteResponse foundRoute = findRoute(*req);
+        FindRouteResponse foundRoute = findRoute(req);
 
         if (foundRoute.route.rule == nullptr)
         {
@@ -612,13 +611,13 @@ class Router
             if (foundRoute.allowHeader.empty())
             {
                 foundRoute.route = findRouteByPerMethod(
-                    req->url().encoded_path(), notFoundRoutes);
+                    req.url().encoded_path(), notFoundRoutes);
             }
             else
             {
                 // See if we have a method not allowed (405) handler
                 foundRoute.route = findRouteByPerMethod(
-                    req->url().encoded_path(), methodNotAllowedRoutes);
+                    req.url().encoded_path(), methodNotAllowedRoutes);
             }
         }
 
@@ -649,17 +648,17 @@ class Router
         std::vector<std::string> params = std::move(foundRoute.route.params);
 
         BMCWEB_LOG_DEBUG("Matched rule '{}' {} / {}", rule.rule,
-                         req->methodString(), rule.getMethods());
+                         req.methodString(), rule.getMethods());
 
-        if (req->session == nullptr)
+        if (req.session == nullptr)
         {
-            rule.handle(*req, asyncResp, params);
+            rule.handle(req, asyncResp, params);
             return;
         }
         validatePrivilege(
             req, asyncResp, rule,
             [req, asyncResp, &rule, params = std::move(params)]() {
-                rule.handle(*req, asyncResp, params);
+                rule.handle(req, asyncResp, params);
             });
     }
 
