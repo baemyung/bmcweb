@@ -24,7 +24,7 @@
 namespace crow
 {
 
-struct Request
+struct Request : public std::enable_shared_from_this<Request>
 {
     using Body = boost::beast::http::request<bmcweb::HttpBody>;
     Body req;
@@ -50,12 +50,11 @@ struct Request
     {}
 
     Request() = default;
-
-    Request(const Request& other) = default;
+    Request(const Request& other) = delete;
     Request(Request&& other) = default;
 
-    Request& operator=(const Request&) = default;
-    Request& operator=(Request&&) = default;
+    Request& operator=(const Request&) = delete;
+    Request& operator=(Request&&) = delete;
     ~Request() = default;
 
     void addHeader(std::string_view key, std::string_view value)
