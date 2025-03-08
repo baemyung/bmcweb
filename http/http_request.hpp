@@ -27,8 +27,7 @@ namespace crow
 struct Request
 {
     using Body = boost::beast::http::request<bmcweb::HttpBody>;
-    std::shared_ptr<Body> reqPtr;
-    Body& req;
+    std::shared_ptr<Body> reqPtr = std::make_shared<Body>();
 
   private:
     boost::urls::url urlBase;
@@ -40,7 +39,7 @@ struct Request
 
     std::string userRole;
     Request(Body reqIn, std::error_code& ec) :
-        reqPtr(std::make_shared<Body>(std::move(reqIn))), req(*reqPtr)
+        reqPtr(std::make_shared<Body>(std::move(reqIn)))
     {
         if (!setUrlInfo())
         {
@@ -49,11 +48,10 @@ struct Request
     }
 
     Request(std::string_view bodyIn, std::error_code& /*ec*/) :
-        reqPtr(std::make_shared<Body>(Body({}, bodyIn))), req(*reqPtr)
+        reqPtr(std::make_shared<Body>(Body({}, bodyIn)))
     {}
 
-    Request() : reqPtr(std::make_shared<Body>()), req(*reqPtr) {}
-
+    Request() = default;
     Request(const Request& other) = default;
     Request(Request&& other) = default;
 
@@ -61,19 +59,28 @@ struct Request
     Request& operator=(const Request&&) = delete;
     ~Request() = default;
 
+    Body& req()
+    {
+        return *reqPtr;
+    }
+    const Body& req() const
+    {
+        return *reqPtr;
+    }
+
     void addHeader(std::string_view key, std::string_view value)
     {
-        req.insert(key, value);
+        reqPtr->insert(key, value);
     }
 
     void addHeader(boost::beast::http::field key, std::string_view value)
     {
-        req.insert(key, value);
+        reqPtr->insert(key, value);
     }
 
     void clear()
     {
-        req.clear();
+        reqPtr->clear();
         urlBase.clear();
         ipAddress = boost::asio::ip::address();
         session = nullptr;
@@ -82,42 +89,42 @@ struct Request
 
     boost::beast::http::verb method() const
     {
-        return req.method();
+        return reqPtr->method();
     }
 
     void method(boost::beast::http::verb verb)
     {
-        req.method(verb);
+        reqPtr->method(verb);
     }
 
     std::string_view methodString()
     {
-        return req.method_string();
+        return reqPtr->method_string();
     }
 
     std::string_view getHeaderValue(std::string_view key) const
     {
-        return req[key];
+        return (*reqPtr)[key];
     }
 
     std::string_view getHeaderValue(boost::beast::http::field key) const
     {
-        return req[key];
+        return (*reqPtr)[key];
     }
 
     void clearHeader(boost::beast::http::field key)
     {
-        req.erase(key);
+        reqPtr->erase(key);
     }
 
     std::string_view methodString() const
     {
-        return req.method_string();
+        return reqPtr->method_string();
     }
 
     std::string_view target() const
     {
-        return req.target();
+        return reqPtr->target();
     }
 
     boost::urls::url& url()
@@ -132,34 +139,34 @@ struct Request
 
     const boost::beast::http::fields& fields() const
     {
-        return req.base();
+        return reqPtr->base();
     }
 
     const std::string& body() const
     {
-        return req.body().str();
+        return reqPtr->body().str();
     }
 
     bool target(std::string_view target)
     {
-        req.target(target);
+        reqPtr->target(target);
         return setUrlInfo();
     }
 
     unsigned version() const
     {
-        return req.version();
+        return reqPtr->version();
     }
 
     bool isUpgrade() const
     {
         // NOLINTNEXTLINE(misc-include-cleaner)
-        return boost::beast::websocket::is_upgrade(req);
+        return boost::beast::websocket::is_upgrade(*reqPtr);
     }
 
     bool keepAlive() const
     {
-        return req.keep_alive();
+        return reqPtr->keep_alive();
     }
 
   private:
