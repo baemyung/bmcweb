@@ -59,7 +59,7 @@ class ConnectionImpl : public Connection
         BMCWEB_LOG_DEBUG("SSE ConnectionImpl: SSE destructor {}", logPtr(this));
     }
 
-    void start(const Request& req)
+    void start(const Request& /*req*/)
     {
         BMCWEB_LOG_DEBUG("Starting SSE connection");
 
@@ -69,8 +69,16 @@ class ConnectionImpl : public Connection
 
         boost::beast::http::async_write_header(
             adaptor, serial,
-            std::bind_front(&ConnectionImpl::sendSSEHeaderCallback, this,
-                            shared_from_this(), req));
+            [this, self{shared_from_this()}](
+                const boost::system::error_code& ec, size_t bytesSent) {
+                Request tmpReq;
+                ConnectionImpl::sendSSEHeaderCallback(self, tmpReq, ec,
+                                                      bytesSent);
+            });
+
+        //       boost::beast::http::async_write_header(adaptor, serial,
+        // std::bind_front(&ConnectionImpl::sendSSEHeaderCallback, this,
+        // shared_from_this(), req));
     }
 
     void close(const std::string_view msg) override
