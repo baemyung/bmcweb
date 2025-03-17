@@ -1,7 +1,5 @@
 #include "sessions.hpp"
 
-#include <nlohmann/json.hpp>
-
 #include <gtest/gtest.h>
 
 namespace
