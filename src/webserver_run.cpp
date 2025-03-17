@@ -65,6 +65,9 @@ int run()
 
     iface->initialize();
 
+    BMCWEB_LOG_INFO("TEST: MAIN INFO  enter");
+    BMCWEB_LOG_ERROR("TEST: MAIN ERROR  enter");
+
     // Static assets need to be initialized before Authorization, because auth
     // needs to build the whitelist from the static routes
 
