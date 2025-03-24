@@ -39,8 +39,15 @@ static constexpr std::array<std::string_view, 1> portInterfaces{
 inline void getFabricPortProperties(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& systemName, const std::string& adapterId,
-    const std::string& portId)
+    const std::string& portId, const std::string& portPath)
 {
+    if (portPath.empty())
+    {
+        BMCWEB_LOG_WARNING("Port not found");
+        messages::resourceNotFound(asyncResp->res, "Port", portId);
+        return;
+    }
+
     asyncResp->res.addHeader(
         boost::beast::http::field::link,
         "</redfish/v1/JsonSchemas/Port/Port.json>; rel=describedby");
@@ -55,7 +62,8 @@ inline void getFabricPortProperties(
 
 inline void afterGetValidFabricPortPath(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& portId, std::function<void()>& callback,
+    const std::string& portId,
+    std::function<void(const std::string&)>& callback,
     const boost::system::error_code& ec,
     const dbus::utility::MapperGetSubTreePathsResponse& portSubTreePaths)
 {
@@ -67,8 +75,8 @@ inline void afterGetValidFabricPortPath(
             messages::internalError(asyncResp->res);
             return;
         }
-        BMCWEB_LOG_WARNING("Port not found");
-        messages::resourceNotFound(asyncResp->res, "Port", portId);
+        // Port not found
+        callback(std::string());
         return;
     }
     const auto& it = std::ranges::find_if(
@@ -78,8 +86,8 @@ inline void afterGetValidFabricPortPath(
         });
     if (it == portSubTreePaths.end())
     {
-        BMCWEB_LOG_WARNING("Port not found");
-        messages::resourceNotFound(asyncResp->res, "Port", portId);
+        // Port not found
+        callback(std::string());
         return;
     }
 
@@ -96,14 +104,14 @@ inline void afterGetValidFabricPortPath(
                 messages::internalError(asyncResp->res);
                 return;
             }
-            callback();
+            callback(portPath);
         });
 }
 
 inline void getValidFabricPortPath(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& adapterId, const std::string& portId,
-    std::function<void()>&& callback)
+    std::function<void(const std::string&)>&& callback)
 {
     dbus::utility::getAssociatedSubTreePathsById(
         adapterId, "/xyz/openbmc_project/inventory", fabricInterfaces,
@@ -136,11 +144,19 @@ inline void handleFabricPortHead(
         return;
     }
 
-    getValidFabricPortPath(asyncResp, adapterId, portId, [asyncResp]() {
-        asyncResp->res.addHeader(
-            boost::beast::http::field::link,
-            "</redfish/v1/JsonSchemas/Port/Port.json>; rel=describedby");
-    });
+    getValidFabricPortPath(
+        asyncResp, adapterId, portId,
+        [asyncResp, portId](const std::string& portPath) {
+            if (portPath.empty())
+            {
+                BMCWEB_LOG_WARNING("Port not found");
+                messages::resourceNotFound(asyncResp->res, "Port", portId);
+                return;
+            }
+            asyncResp->res.addHeader(
+                boost::beast::http::field::link,
+                "</redfish/v1/JsonSchemas/Port/Port.json>; rel=describedby");
+        });
 }
 
 inline void handleFabricPortGet(
