@@ -172,12 +172,18 @@ inline void afterGetValidFabricPortPath(
 {
     if (ec)
     {
+        BMCWEB_LOG_ERROR(
+            "TEST: DBUS response error, ec=({}), ec(val={}, msg={}), EBADR={}, io_error={}, EIO={}",
+            ec, ec.value(), ec.message(), EBADR,
+            static_cast<int>(boost::system::errc::io_error), EIO);
+
         if (ec.value() != boost::system::errc::io_error)
         {
             BMCWEB_LOG_ERROR("DBUS response error {}", ec.value());
             messages::internalError(asyncResp->res);
             return;
         }
+        BMCWEB_LOG_ERROR("TEST: ADAPTER NOT FOUND -- io_error");
         // Port not found
         callback(std::string(), std::string());
         return;
@@ -189,6 +195,7 @@ inline void afterGetValidFabricPortPath(
         });
     if (it == portSubTreePaths.end())
     {
+        BMCWEB_LOG_ERROR("TEST: PORT NOT FOUND ");
         // Port not found
         callback(std::string(), std::string());
         return;

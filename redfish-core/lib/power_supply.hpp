@@ -71,9 +71,14 @@ inline void doPowerSupplyCollection(
 {
     if (ec)
     {
+        BMCWEB_LOG_ERROR(
+            "TEST: DBUS response error, ec=({}), ec(val={}, msg={}), EBADR={}, io_error={}, EIO={}",
+            ec, ec.value(), ec.message(), EBADR,
+            static_cast<int>(boost::system::errc::io_error), EIO);
+
         if (ec.value() != EBADR)
         {
-            BMCWEB_LOG_ERROR("DBUS response error{}", ec.value());
+            BMCWEB_LOG_ERROR("DBUS response error, ec={}", ec);
             messages::internalError(asyncResp->res);
         }
         return;
@@ -167,9 +172,16 @@ inline void afterGetValidPowerSupplyPath(
 {
     if (ec)
     {
+        BMCWEB_LOG_ERROR(
+            "TEST: DBUS response error, ec=({}), ec(val={}, msg={}), EBADR={}, io_error={}, EIO={}",
+            ec, ec.value(), ec.message(), EBADR,
+            static_cast<int>(boost::system::errc::io_error), EIO);
+
         if (ec.value() != EBADR)
         {
-            BMCWEB_LOG_ERROR("DBUS response error{}", ec.value());
+            BMCWEB_LOG_ERROR(
+                "DBUS response error, ec=({}), ec(val={}, msg={}), EBADR={}",
+                ec, ec.value(), ec.message(), EBADR);
             messages::internalError(asyncResp->res);
         }
         return;
