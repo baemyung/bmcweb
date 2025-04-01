@@ -2038,9 +2038,10 @@ inline void handleAccountGet(
     sdbusplus::message::object_path path("/xyz/openbmc_project/user");
     dbus::utility::getManagedObjects(
         "xyz.openbmc_project.User.Manager", path,
-        [asyncResp,
+        [asyncResp, req{req.copy()},
          accountName](const boost::system::error_code& ec,
                       const dbus::utility::ManagedObjectType& users) {
+            BMCWEB_LOG_ERROR("TEST: req.url={}", req.body());
             if (ec)
             {
                 messages::internalError(asyncResp->res);

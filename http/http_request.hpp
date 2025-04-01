@@ -32,7 +32,7 @@ struct Request
   private:
     boost::urls::url urlBase;
 
-    Request(const Request& other) = default;
+     Request(const Request& other) = default;
 
   public:
     boost::asio::ip::address ipAddress;
