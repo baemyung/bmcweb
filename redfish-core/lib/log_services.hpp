@@ -1481,52 +1481,6 @@ inline bool fillEventLogLogEntryFromPropertyMap(
     return true;
 }
 
-inline void afterLogEntriesGetManagedObjects(
-    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const boost::system::error_code& ec,
-    const dbus::utility::ManagedObjectType& resp)
-{
-    if (ec)
-    {
-        // TODO Handle for specific error code
-        BMCWEB_LOG_ERROR("getLogEntriesIfaceData resp_handler got error {}",
-                         ec);
-        messages::internalError(asyncResp->res);
-        return;
-    }
-    nlohmann::json::array_t entriesArray;
-    for (const auto& objectPath : resp)
-    {
-        dbus::utility::DBusPropertiesMap propsFlattened;
-        auto isEntry =
-            std::ranges::find_if(objectPath.second, [](const auto& object) {
-                return object.first == "xyz.openbmc_project.Logging.Entry";
-            });
-        if (isEntry == objectPath.second.end())
-        {
-            continue;
-        }
-        for (const auto& interfaceMap : objectPath.second)
-        {
-            for (const auto& propertyMap : interfaceMap.second)
-            {
-                propsFlattened.emplace_back(propertyMap.first,
-                                            propertyMap.second);
-            }
-        }
-        bool success = fillEventLogLogEntryFromPropertyMap(
-            asyncResp, propsFlattened, entriesArray.emplace_back());
-        if (!success)
-        {
-            return;
-        }
-    }
-
-    redfish::json_util::sortJsonArrayByKey(entriesArray, "Id");
-    asyncResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
-    asyncResp->res.jsonValue["Members"] = std::move(entriesArray);
-}
-
 inline void handleSystemsLogServiceEventLogLogEntryCollection(
     App& app, const crow::Request& req,
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
@@ -1723,6 +1677,49 @@ inline void requestRoutesJournalEventLogEntry(App& app)
             handleSystemsLogServiceEventLogEntriesGet, std::ref(app)));
 }
 
+inline void afterDBusEventLogEntryCollection(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const boost::system::error_code& ec,
+    const dbus::utility::MapperGetSubTreePathsResponse& subTreePaths)
+{
+    if (ec)
+    {
+        BMCWEB_LOG_ERROR("getLogEntriesIfaceData resp_handler got error {}",
+                         ec);
+        messages::internalError(asyncResp->res);
+        return;
+    }
+
+    dbus::utility::MapperGetSubTreePathsResponse logEntryPaths = subTreePaths;
+    std::ranges::sort(logEntryPaths, AlphanumLess<std::string>());
+
+    for (const auto& logEntryPath : logEntryPaths)
+    {
+        // DBus implementation of EventLog/Entries
+        // Make call to Logging Service to find all log entry objects
+        dbus::utility::getAllProperties(
+            "xyz.openbmc_project.Logging", logEntryPath, "",
+            [asyncResp](const boost::system::error_code& ec1,
+                        const dbus::utility::DBusPropertiesMap& respProps) {
+                if (ec1)
+                {
+                    BMCWEB_LOG_ERROR(
+                        "EventLogEntry (DBus) resp_handler got error {}", ec1);
+                    messages::internalError(asyncResp->res);
+                    return;
+                }
+
+                nlohmann::json& mbrEntries =
+                    asyncResp->res.jsonValue["Members"];
+
+                fillEventLogLogEntryFromPropertyMap(asyncResp, respProps,
+                                                    mbrEntries.emplace_back());
+                asyncResp->res.jsonValue["Members@odata.count"] =
+                    mbrEntries.size();
+            });
+    }
+}
+
 inline void dBusEventLogEntryCollection(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
 {
@@ -1739,13 +1736,13 @@ inline void dBusEventLogEntryCollection(
 
     // DBus implementation of EventLog/Entries
     // Make call to Logging Service to find all log entry objects
-    sdbusplus::message::object_path path("/xyz/openbmc_project/logging");
-    dbus::utility::getManagedObjects(
-        "xyz.openbmc_project.Logging", path,
-        [asyncResp](const boost::system::error_code& ec,
-                    const dbus::utility::ManagedObjectType& resp) {
-            afterLogEntriesGetManagedObjects(asyncResp, ec, resp);
-        });
+
+    constexpr std::array<std::string_view, 1> logEntryInterfaces = {
+        "xyz.openbmc_project.Logging.Entry"};
+
+    dbus::utility::getSubTreePaths(
+        "/xyz/openbmc_project/logging", 0, logEntryInterfaces,
+        std::bind_front(afterDBusEventLogEntryCollection, asyncResp));
 }
 
 inline void requestRoutesDBusEventLogEntryCollection(App& app)
