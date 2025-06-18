@@ -207,7 +207,13 @@ class HTTP2Connection :
 
         completeResponseFields(stream.accept, res);
         res.addHeader(boost::beast::http::field::date, getCachedDateStr());
-        res.preparePayload();
+
+        boost::urls::url_view urlView;
+        if (stream.req != nullptr)
+        {
+            urlView = stream.req->url();
+        }
+        res.preparePayload(urlView);
 
         boost::beast::http::fields& fields = res.fields();
         std::string code = std::to_string(res.resultInt());
