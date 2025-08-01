@@ -53,9 +53,25 @@ class SubRequest
         return method_;
     }
 
-    const nlohmann::json::object_t& payload() const
+    const nlohmann::json::object_t& payload(
+        std::string_view oemSubKey = {}) const
     {
-        return payload_;
+        if (oemSubKey.size() == 0)
+        {
+            return payload_;
+        }
+
+        for (const auto& item : payload_)
+        {
+            if (item.first == oemSubKey)
+            {
+                const nlohmann::json::object_t* oemSubObj =
+                    item.second.get_ptr<const nlohmann::json::object_t*>();
+                return *oemSubObj;
+            }
+        }
+        static nlohmann::json::object_t emptyJsonObj{};
+        return emptyJsonObj;
     }
 
     bool needHandling() const
