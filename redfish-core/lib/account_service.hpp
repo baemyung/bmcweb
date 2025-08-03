@@ -1532,6 +1532,7 @@ inline void handleRespondToUnauthenticatedClientsPatch(
     App& app, const crow::Request& req, crow::Response& res,
     bool respondToUnauthenticatedClients)
 {
+    BMCWEB_LOG_ERROR("TEST: handleRespondToUnauthenticatedClientsPatch BEGIN");
     if (req.session != nullptr)
     {
         // Sanity check.  If the user isn't currently authenticated with mutual
@@ -1557,6 +1558,7 @@ inline void handleRespondToUnauthenticatedClientsPatch(
     persistent_data::getConfig().writeData();
 
     // Trigger a reload, to apply the new settings to new connections
+    BMCWEB_LOG_ERROR("TEST: handleRespondToUnauthenticatedClientsPatch call app.loadCertificate()");
     app.loadCertificate();
 }
 

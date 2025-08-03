@@ -71,12 +71,36 @@ class App
 
     void loadCertificate()
     {
+        BMCWEB_LOG_ERROR("TEST: APP - loadCertificate BEGIN");
+
+            BMCWEB_LOG_ERROR("TEST: loadCertificate BEGIN  hasWebuiRoute ==> {}, {}",
+                     forward_unauthorized::hasWebuiRoute,
+                     forward_unauthorized::getHasWebuiRoute());
+
+
         BMCWEB_LOG_DEBUG("Loading certificate");
         if (!server)
         {
+            BMCWEB_LOG_ERROR("TEST: APP - loadCertificate END -- !server");
             return;
         }
+
+
+        BMCWEB_LOG_ERROR("TEST: APP - loadCertificate call server->loadCertificate()");
+
+
+            BMCWEB_LOG_ERROR("TEST: loadCertificate MIDDLE  hasWebuiRoute ==> {}, {}",
+                     forward_unauthorized::hasWebuiRoute,
+                     forward_unauthorized::getHasWebuiRoute());
+
+
         server->loadCertificate();
+
+
+            BMCWEB_LOG_ERROR("TEST: loadCertificate END  hasWebuiRoute ==> {}, {}",
+                     forward_unauthorized::hasWebuiRoute,
+                     forward_unauthorized::getHasWebuiRoute());
+
     }
 
     static HttpType getHttpType(std::string_view socketTypeString)

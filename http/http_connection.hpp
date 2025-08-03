@@ -109,6 +109,9 @@ class Connection :
     bool tlsVerifyCallback(bool preverified,
                            boost::asio::ssl::verify_context& ctx)
     {
+        BMCWEB_LOG_ERROR("TEST: {} tlsVerifyCallback called with preverified {}",
+                         logPtr(this), preverified);
+
         BMCWEB_LOG_DEBUG("{} tlsVerifyCallback called with preverified {}",
                          logPtr(this), preverified);
         if (preverified)

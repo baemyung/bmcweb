@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright OpenBMC Authors
 #pragma once
+#include "logging.hpp"
 #include "http_response.hpp"
 #include "http_utility.hpp"
 #include "sessions.hpp"
@@ -18,6 +19,18 @@ namespace forward_unauthorized
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static bool hasWebuiRoute = false;
 
+inline bool getHasWebuiRoute()
+{
+    BMCWEB_LOG_ERROR("TEST: getHasWebuiRoute v={} from ptr={}", hasWebuiRoute, crow::logPtr(&hasWebuiRoute));
+    return hasWebuiRoute;
+}
+
+inline void setHasWebuiRoute(bool v)
+{
+    BMCWEB_LOG_ERROR("TEST: TEST: setHasWebuiRoute to value={} at {}", v, crow::logPtr(&hasWebuiRoute));
+    hasWebuiRoute = v;
+}
+
 inline void sendUnauthorized(std::string_view url,
                              std::string_view xRequestedWith,
                              std::string_view accept, crow::Response& res)
@@ -28,7 +41,10 @@ inline void sendUnauthorized(std::string_view url,
             accept, http_helpers::ContentType::HTML, false /*allowWildcard*/))
     {
         // If we have a webui installed, redirect to that login page
-        if (hasWebuiRoute)
+
+        BMCWEB_LOG_ERROR("TEST: sendUnauthorized. hasWebuiRoute={}", getHasWebuiRoute());
+
+        if (getHasWebuiRoute())
         {
             boost::urls::url forward =
                 boost::urls::format("/?next={}#/login", url);

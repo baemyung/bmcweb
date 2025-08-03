@@ -49,6 +49,9 @@ static void setLogLevel(const std::string& logLevel)
 
 int run()
 {
+
+    crow::webassets::printHasWebuiRoute("BEGIN0000");
+
     boost::asio::io_context& io = getIoContext();
     App app;
 
@@ -65,6 +68,9 @@ int run()
     iface->register_method("SetLogLevel", setLogLevel);
 
     iface->initialize();
+
+   crow::webassets::printHasWebuiRoute("BEGIN");
+
 
     // Load the peristent data
     persistent_data::getConfig();
@@ -132,11 +138,20 @@ int run()
 
     bmcweb::ServiceWatchdog watchdog;
 
+
+   crow::webassets::printHasWebuiRoute("BEFORE");
+
     app.run();
 
     systemBus->request_name("xyz.openbmc_project.bmcweb");
 
+
+       crow::webassets::printHasWebuiRoute("BEFORE-IO.RUN");
+
     io.run();
+
+       crow::webassets::printHasWebuiRoute("END");
+
 
     crow::connections::systemBus = nullptr;
 

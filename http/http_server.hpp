@@ -4,6 +4,7 @@
 
 #include "bmcweb_config.h"
 
+#include "forward_unauthorized.hpp"
 #include "http_connect_types.hpp"
 #include "http_connection.hpp"
 #include "io_context_singleton.hpp"
@@ -64,6 +65,7 @@ class Server
 
     void run()
     {
+        BMCWEB_LOG_ERROR("TEST: http_server run ... call server::loadCertificate()");
         loadCertificate();
         updateDateStr();
 
@@ -85,17 +87,21 @@ class Server
                 "bmcweb server is running, local endpoint {}",
                 accept.acceptor.local_endpoint().address().to_string());
         }
+                BMCWEB_LOG_ERROR("TEST: startAsyncWaitForSignal run");
         startAsyncWaitForSignal();
         doAccept();
     }
 
     void loadCertificate()
     {
+         BMCWEB_LOG_ERROR("TEST: http_server:: loadCertificate. BEGIN");
         if constexpr (BMCWEB_INSECURE_DISABLE_SSL)
         {
             return;
         }
 
+        BMCWEB_LOG_ERROR("TEST: http_server:: loadCertificate. do getSslServerContext");
+        BMCWEB_LOG_ERROR("TEST: http_server  hasWebuiRoute={} at {}", forward_unauthorized::hasWebuiRoute, crow::logPtr(&forward_unauthorized::hasWebuiRoute));
         adaptorCtx = ensuressl::getSslServerContext();
     }
 
@@ -112,6 +118,7 @@ class Server
                     if (signalNo == SIGHUP)
                     {
                         BMCWEB_LOG_INFO("Receivied reload signal");
+                        BMCWEB_LOG_ERROR("TEST: startAsyncWaitForSignal ==> loadCert");
                         loadCertificate();
                         startAsyncWaitForSignal();
                     }

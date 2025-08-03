@@ -32,6 +32,16 @@ namespace crow
 namespace webassets
 {
 
+inline void printHasWebuiRoute(const std::string& header)
+{
+    BMCWEB_LOG_ERROR("TEST:printHasWebuiRoute - {} ", header);
+    BMCWEB_LOG_ERROR("TEST: TEST: hasWebuiRoute v={} at {}, getval={}",
+                 forward_unauthorized::hasWebuiRoute, 
+                 crow::logPtr(&forward_unauthorized::hasWebuiRoute), forward_unauthorized::getHasWebuiRoute());
+
+ }
+
+
 inline std::string getStaticEtag(const std::filesystem::path& webpath)
 {
     // webpack outputs production chunks in the form:
@@ -171,6 +181,13 @@ inline void addFile(App& app, const std::filesystem::directory_entry& dir)
     std::string extension = relativePath.extension();
     std::filesystem::path webpath = relativePath;
 
+    BMCWEB_LOG_ERROR("TEST: addFile ext={}, webpath.BEGIN={}", extension,
+                     webpath.string());
+    BMCWEB_LOG_ERROR(
+        "TEST: addFile BEGIN.START  hasWebuiRoute ==>  {}, {}",
+        forward_unauthorized::hasWebuiRoute,
+        forward_unauthorized::getHasWebuiRoute());
+
     if (extension == ".gz")
     {
         webpath = webpath.replace_extension("");
@@ -178,6 +195,9 @@ inline void addFile(App& app, const std::filesystem::directory_entry& dir)
         extension = webpath.extension().string();
         file.contentEncoding = "gzip";
         file.onDiskComp = bmcweb::CompressionType::Gzip;
+
+        BMCWEB_LOG_ERROR("TEST: addFile gz ext={}, webpath={}", extension,
+                         webpath.string());
     }
     else if (extension == ".zstd")
     {
@@ -186,19 +206,33 @@ inline void addFile(App& app, const std::filesystem::directory_entry& dir)
         extension = webpath.extension().string();
         file.contentEncoding = "zstd";
         file.onDiskComp = bmcweb::CompressionType::Zstd;
+
+        BMCWEB_LOG_ERROR("TEST: addFile zstd ext={}, webpath={}", extension,
+                         webpath.string());
     }
+
+    BMCWEB_LOG_ERROR("TEST: addFile BEF. getStaticEtag ext={}, webpath={}",
+                     extension, webpath.string());
 
     file.etag = getStaticEtag(webpath);
 
     if (webpath.filename().string().starts_with("index."))
     {
+        BMCWEB_LOG_ERROR("TEST: addFile index.");
+
         webpath = webpath.parent_path();
+
+        BMCWEB_LOG_ERROR("TEST: addFile parent.webpath = {}", webpath.string());
+
         if (webpath.string().empty() || webpath.string().back() != '/')
         {
             // insert the non-directory version of this path
             webroutes::routes.insert(webpath);
             webpath += "/";
             file.renamed = true;
+
+            BMCWEB_LOG_ERROR("TEST: addFile parent.webpath = {}.... ADD //",
+                             webpath.string());
         }
     }
 
@@ -216,7 +250,13 @@ inline void addFile(App& app, const std::filesystem::directory_entry& dir)
 
     if (webpath == "/")
     {
-        forward_unauthorized::hasWebuiRoute = true;
+        // forward_unauthorized::hasWebuiRoute = true;
+        forward_unauthorized::setHasWebuiRoute(true);
+
+        BMCWEB_LOG_ERROR(
+            "TEST: addFile parent.webpath = {}.... ROOT =  hasWebuiRoute ==> SET-to-TRUE, {}, {}",
+            webpath.string(), forward_unauthorized::hasWebuiRoute,
+            forward_unauthorized::getHasWebuiRoute());
     }
 
     app.routeDynamic(webpath)(
@@ -225,10 +265,18 @@ inline void addFile(App& app, const std::filesystem::directory_entry& dir)
                     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp) {
             handleStaticAsset(req, asyncResp, file);
         });
+
+    BMCWEB_LOG_ERROR("TEST: addFile END.AFTER  hasWebuiRoute ==> {}, {}",
+                     forward_unauthorized::hasWebuiRoute,
+                     forward_unauthorized::getHasWebuiRoute());
 }
 
 inline void requestRoutes(App& app)
 {
+        BMCWEB_LOG_ERROR("TEST: webassets::BEGIN hasWebuiRoute ==> {}, {}",
+                     forward_unauthorized::hasWebuiRoute,
+                     forward_unauthorized::getHasWebuiRoute());
+
     std::error_code ec;
     std::filesystem::recursive_directory_iterator dirIter({rootpath}, ec);
     if (ec)
@@ -263,6 +311,11 @@ inline void requestRoutes(App& app)
             addFile(app, dir);
         }
     }
+
+            BMCWEB_LOG_ERROR("TEST: webassets::END hasWebuiRoute ==> {}, {}",
+                     forward_unauthorized::hasWebuiRoute,
+                     forward_unauthorized::getHasWebuiRoute());
+
 }
 } // namespace webassets
 } // namespace crow

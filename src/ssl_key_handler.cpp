@@ -537,23 +537,32 @@ std::shared_ptr<boost::asio::ssl::context> getSslServerContext()
 {
     boost::asio::ssl::context sslCtx(boost::asio::ssl::context::tls_server);
 
+    BMCWEB_LOG_ERROR("TEST: getSslServerContext BEGIN ");
+
     auto certFile = ensureCertificate();
     if (!getSslContext(sslCtx, certFile))
     {
+        BMCWEB_LOG_ERROR("TEST: getSslServerContext Couldn't get server context ");
         BMCWEB_LOG_CRITICAL("Couldn't get server context");
         return nullptr;
     }
     const persistent_data::AuthConfigMethods& c =
         persistent_data::SessionStore::getInstance().getAuthMethodsConfig();
 
+        BMCWEB_LOG_ERROR("TEST: getSslServerContext c.tlsStrict={}, hasWebuiRoute={}, {} {}", 
+            c.tlsStrict, forward_unauthorized::hasWebuiRoute, crow::logPtr(&forward_unauthorized::hasWebuiRoute), forward_unauthorized::getHasWebuiRoute());
+
     boost::asio::ssl::verify_mode mode = boost::asio::ssl::verify_none;
     if (c.tlsStrict)
     {
+         BMCWEB_LOG_ERROR("TEST: getSslServerContext tlsStrict ==> peer | fail_if_no_peer ");
+
         BMCWEB_LOG_DEBUG("Setting verify peer and fail if no peer cert");
         mode |= boost::asio::ssl::verify_peer;
         mode |= boost::asio::ssl::verify_fail_if_no_peer_cert;
     }
     else if (!forward_unauthorized::hasWebuiRoute)
+     //else if (!forward_unauthorized::getHasWebuiRoute())
     {
         // This is a HACK
         // If the webui is installed, and TLSSTrict is false, we don't want to
@@ -564,18 +573,25 @@ std::shared_ptr<boost::asio::ssl::context> getSslServerContext()
         // request.  So, in this case detect if the webui is installed, and
         // only request peer authentication if it's not present.
         // This will likely need revisited in the future.
+        BMCWEB_LOG_ERROR("TEST: getSslServerContext NOT tlsStrict & !forward_unauthorized::hasWebuiRoute==> verify peer only ");
         BMCWEB_LOG_DEBUG("Setting verify peer only");
         mode |= boost::asio::ssl::verify_peer;
     }
+    else{
+    BMCWEB_LOG_ERROR("TEST: getSslServerContext!!!! NOT c.tlsStrict, has_WebRoute ==> verify_none");
+
+    }
+
 
     boost::system::error_code ec;
     sslCtx.set_verify_mode(mode, ec);
     if (ec)
     {
+        BMCWEB_LOG_ERROR("TEST: getSslServerContext Failed to set verify mode, ec.v:{}, ec.m:{}", ec.value(), ec.message());
         BMCWEB_LOG_DEBUG("Failed to set verify mode {}", ec.message());
         return nullptr;
     }
-
+   BMCWEB_LOG_ERROR("TEST: GO RENE...");
     SSL_CTX_set_options(sslCtx.native_handle(), SSL_OP_NO_RENEGOTIATION);
 
     if constexpr (BMCWEB_HTTP2)
