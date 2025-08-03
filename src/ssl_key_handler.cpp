@@ -548,7 +548,7 @@ std::shared_ptr<boost::asio::ssl::context> getSslServerContext()
 
     BMCWEB_LOG_ERROR(
         "TEST: getSslServerContext = strict={}, hasWebuiRoute = {}",
-        c.tlsStrict, forward_unauthorized::hasWebuiRoute);
+        c.tlsStrict, forward_unauthorized::hasWebuiRoute());
 
     boost::asio::ssl::verify_mode mode = boost::asio::ssl::verify_none;
     if (c.tlsStrict)
