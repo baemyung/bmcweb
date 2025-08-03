@@ -242,7 +242,7 @@ class Connection :
         buffer.consume(bytesParsed);
         if (ec)
         {
-            BMCWEB_LOG_ERROR("{} SSL handshake failed", logPtr(this));
+            BMCWEB_LOG_ERROR("{} SSL handshake failed, ec={}", logPtr(this), ec);
             return;
         }
         BMCWEB_LOG_DEBUG("{} SSL handshake succeeded", logPtr(this));

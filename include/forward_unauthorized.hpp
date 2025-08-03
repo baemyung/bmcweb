@@ -31,6 +31,8 @@ inline void sendUnauthorized(std::string_view url,
             accept, http_helpers::ContentType::HTML, false /*allowWildcard*/))
     {
         // If we have a webui installed, redirect to that login page
+        BMCWEB_LOG_ERROR("TEST: sendUnauthorized hasWebuiRoute={}",
+                         hasWebuiRoute());
         if (hasWebuiRoute())
         {
             boost::urls::url forward =
@@ -48,6 +50,8 @@ inline void sendUnauthorized(std::string_view url,
         return;
     }
 
+    BMCWEB_LOG_ERROR("TEST: sendUnauthorized hasWebuiRoute={} ==> unauthorized",
+                     hasWebuiRoute());
     res.result(boost::beast::http::status::unauthorized);
 
     // XHR requests from a browser will set the X-Requested-With header when
