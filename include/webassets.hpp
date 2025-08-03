@@ -216,6 +216,8 @@ inline void addFile(App& app, const std::filesystem::directory_entry& dir)
 
     if (webpath == "/")
     {
+        BMCWEB_LOG_ERROR(
+            "TEST: webassets - addFile, SET hasWebuiRoute=true, as webpath=/");
         forward_unauthorized::hasWebuiRoute() = true;
     }
 
