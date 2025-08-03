@@ -546,9 +546,14 @@ std::shared_ptr<boost::asio::ssl::context> getSslServerContext()
     const persistent_data::AuthConfigMethods& c =
         persistent_data::SessionStore::getInstance().getAuthMethodsConfig();
 
+    BMCWEB_LOG_ERROR(
+        "TEST: getSslServerContext = strict={}, hasWebuiRoute = {}",
+        c.tlsStrict, forward_unauthorized::hasWebuiRoute);
+
     boost::asio::ssl::verify_mode mode = boost::asio::ssl::verify_none;
     if (c.tlsStrict)
     {
+        BMCWEB_LOG_ERROR("TEST: Setting verify peer and fail if no peer cert");
         BMCWEB_LOG_DEBUG("Setting verify peer and fail if no peer cert");
         mode |= boost::asio::ssl::verify_peer;
         mode |= boost::asio::ssl::verify_fail_if_no_peer_cert;
@@ -564,14 +569,25 @@ std::shared_ptr<boost::asio::ssl::context> getSslServerContext()
         // request.  So, in this case detect if the webui is installed, and
         // only request peer authentication if it's not present.
         // This will likely need revisited in the future.
+        BMCWEB_LOG_ERROR("TEST: Setting verify peer only");
         BMCWEB_LOG_DEBUG("Setting verify peer only");
         mode |= boost::asio::ssl::verify_peer;
+    }
+    else
+    {
+        BMCWEB_LOG_ERROR("TEST: Setting verify NONE");
+    }
+
+    if (mode == boost::asio::ssl::verify_none)
+    {
+        BMCWEB_LOG_ERROR("TEST: Setting verify NONE2222");
     }
 
     boost::system::error_code ec;
     sslCtx.set_verify_mode(mode, ec);
     if (ec)
     {
+        BMCWEB_LOG_ERROR("TEST: Failed to set verify mode {}", ec.message());
         BMCWEB_LOG_DEBUG("Failed to set verify mode {}", ec.message());
         return nullptr;
     }
