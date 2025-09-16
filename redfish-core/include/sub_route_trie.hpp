@@ -18,12 +18,15 @@ namespace crow
 struct SubRouteNode : public crow::Node
 {
     using ChildMap = crow::Node::ChildMap;
-    ChildMap fragmentChildren;
+    ChildMap fragmentChildren{};
 
     bool isSimpleNode() const
     {
         return crow::Node::isSimpleNode() && fragmentChildren.empty();
     }
+
+    SubRouteNode() {}
+    ~SubRouteNode() {}
 };
 
 template <typename ContainedType>

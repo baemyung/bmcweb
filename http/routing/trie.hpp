@@ -8,6 +8,7 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/small_vector.hpp>
 
+#include <cassert>
 #include <cstddef>
 #include <format>
 #include <functional>
@@ -30,12 +31,14 @@ struct Node
     using ChildMap = boost::container::flat_map<
         std::string, unsigned, std::less<>,
         boost::container::small_vector<std::pair<std::string, unsigned>, 1>>;
-    ChildMap children;
+    ChildMap children{};
 
     bool isSimpleNode() const
     {
         return ruleIndex == 0 && stringParamChild == 0 && pathParamChild == 0;
     }
+    Node() {}
+    ~Node() {}
 };
 template <typename ContainedType>
 class Trie
@@ -237,6 +240,8 @@ class Trie
                     {
                         continue;
                     }
+                    assert(idx < nodes.size());
+
                     found = true;
                     ContainedType& node = nodes[idx];
                     size_t* param = &node.stringParamChild;
@@ -321,7 +326,8 @@ class Trie
 
     unsigned newNode()
     {
-        nodes.resize(nodes.size() + 1);
+        // nodes.resize(nodes.size() + 1);
+        nodes.emplace_back(ContainedType());
         return static_cast<unsigned>(nodes.size() - 1);
     }
 

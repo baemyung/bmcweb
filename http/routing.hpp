@@ -111,7 +111,10 @@ class Router
         Trie<crow::Node> trie;
         // rule index 0 has special meaning; preallocate it to avoid
         // duplication.
-        PerMethod() : rules(1) {}
+        PerMethod()
+        {
+            rules.emplace_back(nullptr);
+        }
 
         void internalAdd(std::string_view rule, BaseRule* ruleObject)
         {

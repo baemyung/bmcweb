@@ -225,15 +225,15 @@ inline void handleChassisAssemblyHead(
 
 inline void requestRoutesAssembly(App& app)
 {
-    // BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly/")
-    //     .privileges(redfish::privileges::headAssembly)
-    //     .methods(boost::beast::http::verb::head)(
-    //         std::bind_front(handleChassisAssemblyHead, std::ref(app)));
-
     BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly/")
-        .privileges(redfish::privileges::getAssembly)
-        .methods(boost::beast::http::verb::get)(
-            std::bind_front(handleChassisAssemblyGet, std::ref(app)));
+        .privileges(redfish::privileges::headAssembly)
+        .methods(boost::beast::http::verb::head)(
+            std::bind_front(handleChassisAssemblyHead, std::ref(app)));
+
+    // BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly/")
+    //     .privileges(redfish::privileges::getAssembly)
+    //    .methods(boost::beast::http::verb::get)(
+    //         std::bind_front(handleChassisAssemblyGet, std::ref(app)));
 }
 
 } // namespace redfish
