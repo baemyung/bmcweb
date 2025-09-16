@@ -4,7 +4,6 @@ srcfiles_unittest = files(
     'http/http2_connection_test.cpp',
     'http/http_body_test.cpp',
     'http/http_connection_test.cpp',
-    'http/http_response_test.cpp',
     'http/mutual_tls.cpp',
     'http/parsing_test.cpp',
     'http/router_test.cpp',

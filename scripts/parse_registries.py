@@ -533,7 +533,7 @@ namespace messages
         headers.append("<cstddef>")
         headers.append("<span>")
 
-        if registry_name not in ("ResourceEvent", "HeartbeatEvent"):
+        if registry_name not in ("ResourceEvent", "HeartbeatEvent", "Update"):
             headers.append("<cstdint>")
             headers.append("<string>")
         headers.append("<string_view>")
