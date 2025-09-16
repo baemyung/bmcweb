@@ -30,7 +30,7 @@ struct Node
     using ChildMap = boost::container::flat_map<
         std::string, unsigned, std::less<>,
         boost::container::small_vector<std::pair<std::string, unsigned>, 1>>;
-    ChildMap children;
+    ChildMap children{};
 
     bool isSimpleNode() const
     {
@@ -321,7 +321,8 @@ class Trie
 
     unsigned newNode()
     {
-        nodes.resize(nodes.size() + 1);
+        // nodes.resize(nodes.size() + 1);
+        nodes.push_back(ContainedType());
         return static_cast<unsigned>(nodes.size() - 1);
     }
 
