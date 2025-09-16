@@ -8,8 +8,8 @@
 #include <boost/beast/core/buffers_to_string.hpp>
 #include <boost/beast/core/file_base.hpp>
 #include <boost/beast/core/file_posix.hpp>
-#include <boost/beast/http/message.hpp>
-#include <boost/beast/http/serializer.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/serializer_fwd.hpp>
 #include <boost/beast/http/status.hpp>
 
 #include <cstdio>
@@ -38,7 +38,7 @@ std::string getData(boost::beast::http::response<bmcweb::HttpBody>& m)
 {
     std::string ret;
 
-    boost::beast::http::response_serializer<bmcweb::HttpBody> sr{m};
+    boost::beast::http::response_serializer<bmcweb::HttpBody> sr(m);
     sr.split(true);
     // Reads buffers into ret
     auto reader =
