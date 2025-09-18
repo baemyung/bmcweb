@@ -46,11 +46,11 @@ TEST(OemRouter, FragmentRoutesWithAssembly)
             EXPECT_EQ(chassisId, "chassis");
         };
 
-    BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly")
+    BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly/")
         .privileges(redfish::privileges::headAssembly)
         .methods(boost::beast::http::verb::head)(assemblyHeadCallback);
 
-    BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly")
+    BMCWEB_ROUTE(app, "/redfish/v1/Chassis/<str>/Assembly/")
         .privileges(redfish::privileges::getAssembly)
         .methods(boost::beast::http::verb::get)(assemblyGetCallback);
 
