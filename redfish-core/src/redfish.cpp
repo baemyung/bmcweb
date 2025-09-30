@@ -64,7 +64,9 @@ RedfishService::RedfishService(App& app)
     requestRoutesMetadata(app);
     requestRoutesOdata(app);
 
+    requestRoutesAssembly(app);
     requestAccountServiceRoutes(app);
+
     if constexpr (BMCWEB_REDFISH_AGGREGATION)
     {
         requestRoutesAggregationService(app);
@@ -165,8 +167,6 @@ RedfishService::RedfishService(App& app)
 
     requestRoutesBiosService(app);
     requestRoutesBiosReset(app);
-
-    requestRoutesAssembly(app);
 
     if constexpr (BMCWEB_VM_NBDPROXY)
     {
