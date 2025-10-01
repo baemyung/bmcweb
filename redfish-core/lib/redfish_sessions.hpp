@@ -403,25 +403,28 @@ inline void requestRoutesSession(App& app)
         .methods(boost::beast::http::verb::post)(
             std::bind_front(handleSessionCollectionPost, std::ref(app)));
 
-    BMCWEB_ROUTE(app, "/redfish/v1/SessionService/Sessions/Members/")
-        .privileges({})
-        .methods(boost::beast::http::verb::post)(
-            std::bind_front(handleSessionCollectionPost, std::ref(app)));
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        BMCWEB_ROUTE(app, "/redfish/v1/SessionService/Sessions/Members/")
+            .privileges({})
+            .methods(boost::beast::http::verb::post)(
+                std::bind_front(handleSessionCollectionPost, std::ref(app)));
 
-    BMCWEB_ROUTE(app, "/redfish/v1/SessionService/")
-        .privileges(redfish::privileges::headSessionService)
-        .methods(boost::beast::http::verb::head)(
-            std::bind_front(handleSessionServiceHead, std::ref(app)));
+        BMCWEB_ROUTE(app, "/redfish/v1/SessionService/")
+            .privileges(redfish::privileges::headSessionService)
+            .methods(boost::beast::http::verb::head)(
+                std::bind_front(handleSessionServiceHead, std::ref(app)));
 
-    BMCWEB_ROUTE(app, "/redfish/v1/SessionService/")
-        .privileges(redfish::privileges::getSessionService)
-        .methods(boost::beast::http::verb::get)(
-            std::bind_front(handleSessionServiceGet, std::ref(app)));
+        BMCWEB_ROUTE(app, "/redfish/v1/SessionService/")
+            .privileges(redfish::privileges::getSessionService)
+            .methods(boost::beast::http::verb::get)(
+                std::bind_front(handleSessionServiceGet, std::ref(app)));
 
-    BMCWEB_ROUTE(app, "/redfish/v1/SessionService/")
-        .privileges(redfish::privileges::patchSessionService)
-        .methods(boost::beast::http::verb::patch)(
-            std::bind_front(handleSessionServicePatch, std::ref(app)));
+        BMCWEB_ROUTE(app, "/redfish/v1/SessionService/")
+            .privileges(redfish::privileges::patchSessionService)
+            .methods(boost::beast::http::verb::patch)(
+                std::bind_front(handleSessionServicePatch, std::ref(app)));
+    }
 }
 
 } // namespace redfish

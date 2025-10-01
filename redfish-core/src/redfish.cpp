@@ -73,12 +73,18 @@ RedfishService::RedfishService(App& app)
         requestRoutesAggregationSourceCollection(app);
         requestRoutesAggregationSource(app);
     }
+
     requestRoutesRoles(app);
     requestRoutesRoleCollection(app);
     requestRoutesServiceRoot(app);
     requestRoutesNetworkProtocol(app);
     requestRoutesSession(app);
-    requestEthernetInterfacesRoutes(app);
+
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        requestEthernetInterfacesRoutes(app);
+    }
+
     if constexpr (BMCWEB_REDFISH_ALLOW_DEPRECATED_POWER_THERMAL)
     {
         requestRoutesThermal(app);
@@ -96,27 +102,31 @@ RedfishService::RedfishService(App& app)
         requestRoutesFanCollection(app);
     }
     requestRoutesManager(app);
-    requestRoutesManagerResetAction(app);
-    requestRoutesManagerDiagnosticData(app);
-    requestRoutesChassisCollection(app);
-    requestRoutesChassis(app);
-    requestRoutesChassisResetAction(app);
-    requestRoutesChassisResetActionInfo(app);
-    requestRoutesChassisDrive(app);
-    requestRoutesChassisDriveName(app);
-    requestRoutesUpdateService(app);
-    requestRoutesStorageCollection(app);
-    requestRoutesStorage(app);
-    requestRoutesStorageControllerCollection(app);
-    requestRoutesStorageController(app);
-    requestRoutesDrive(app);
-    requestRoutesCable(app);
-    requestRoutesCableCollection(app);
 
-    requestRoutesSystemLogServiceCollection(app);
-    requestRoutesEventLogService(app);
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        requestRoutesManagerResetAction(app);
+        requestRoutesManagerDiagnosticData(app);
+        requestRoutesChassisCollection(app);
+        requestRoutesChassis(app);
+        requestRoutesChassisResetAction(app);
+        requestRoutesChassisResetActionInfo(app);
+        requestRoutesChassisDrive(app);
+        requestRoutesChassisDriveName(app);
+        requestRoutesUpdateService(app);
+        requestRoutesStorageCollection(app);
+        requestRoutesStorage(app);
+        requestRoutesStorageControllerCollection(app);
+        requestRoutesStorageController(app);
+        requestRoutesDrive(app);
+        requestRoutesCable(app);
+        requestRoutesCableCollection(app);
 
-    requestRoutesSystemsLogServicesPostCode(app);
+        requestRoutesSystemLogServiceCollection(app);
+        requestRoutesEventLogService(app);
+
+        requestRoutesSystemsLogServicesPostCode(app);
+    }
 
     if constexpr (BMCWEB_REDFISH_DUMP_LOG)
     {
@@ -139,7 +149,10 @@ RedfishService::RedfishService(App& app)
         requestRoutesFaultLogDumpClear(app);
     }
 
-    requestRoutesBMCLogServiceCollection(app);
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        requestRoutesBMCLogServiceCollection(app);
+    }
 
     if constexpr (BMCWEB_REDFISH_BMC_JOURNAL)
     {
@@ -157,16 +170,20 @@ RedfishService::RedfishService(App& app)
     }
 
     requestRoutesProcessorCollection(app);
-    requestRoutesProcessor(app);
-    requestRoutesOperatingConfigCollection(app);
-    requestRoutesOperatingConfig(app);
-    requestRoutesMemoryCollection(app);
-    requestRoutesMemory(app);
 
-    requestRoutesSystems(app);
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        requestRoutesProcessor(app);
+        requestRoutesOperatingConfigCollection(app);
+        requestRoutesOperatingConfig(app);
+        requestRoutesMemoryCollection(app);
+        requestRoutesMemory(app);
 
-    requestRoutesBiosService(app);
-    requestRoutesBiosReset(app);
+        requestRoutesSystems(app);
+
+        requestRoutesBiosService(app);
+        requestRoutesBiosReset(app);
+    }
 
     if constexpr (BMCWEB_VM_NBDPROXY)
     {
@@ -192,48 +209,54 @@ RedfishService::RedfishService(App& app)
         requestRoutesSystemsLogServiceHostlogger(app);
     }
 
-    requestRoutesMessageRegistryFileCollection(app);
-    requestRoutesMessageRegistryFile(app);
-    requestRoutesMessageRegistry(app);
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        requestRoutesMessageRegistryFileCollection(app);
+        requestRoutesMessageRegistryFile(app);
+        requestRoutesMessageRegistry(app);
 
-    requestRoutesCertificateService(app);
-    requestRoutesHTTPSCertificate(app);
-    requestRoutesLDAPCertificate(app);
-    requestRoutesTrustStoreCertificate(app);
+        requestRoutesCertificateService(app);
+        requestRoutesHTTPSCertificate(app);
+        requestRoutesLDAPCertificate(app);
+        requestRoutesTrustStoreCertificate(app);
 
-    requestRoutesSystemPCIeFunctionCollection(app);
-    requestRoutesSystemPCIeFunction(app);
-    requestRoutesSystemPCIeDeviceCollection(app);
-    requestRoutesSystemPCIeDevice(app);
+        requestRoutesSystemPCIeFunctionCollection(app);
+        requestRoutesSystemPCIeFunction(app);
+        requestRoutesSystemPCIeDeviceCollection(app);
+        requestRoutesSystemPCIeDevice(app);
 
-    requestRoutesSensorCollection(app);
-    requestRoutesSensor(app);
+        requestRoutesSensorCollection(app);
+        requestRoutesSensor(app);
 
-    requestRoutesTaskMonitor(app);
-    requestRoutesTaskService(app);
-    requestRoutesTaskCollection(app);
-    requestRoutesTask(app);
-    requestRoutesEventService(app);
-    requestRoutesEventServiceSse(app);
-    requestRoutesEventDestinationCollection(app);
-    requestRoutesEventDestination(app);
-    requestRoutesFabricAdapters(app);
-    requestRoutesFabricAdapterCollection(app);
-    requestRoutesFabricPort(app);
-    requestRoutesSubmitTestEvent(app);
+        requestRoutesTaskMonitor(app);
+        requestRoutesTaskService(app);
+        requestRoutesTaskCollection(app);
+        requestRoutesTask(app);
+        requestRoutesEventService(app);
+        requestRoutesEventServiceSse(app);
+        requestRoutesEventDestinationCollection(app);
+        requestRoutesEventDestination(app);
+        requestRoutesFabricAdapters(app);
+        requestRoutesFabricAdapterCollection(app);
+        requestRoutesFabricPort(app);
+        requestRoutesSubmitTestEvent(app);
+    }
 
     if constexpr (BMCWEB_HYPERVISOR_COMPUTER_SYSTEM)
     {
         requestRoutesHypervisorSystems(app);
     }
 
-    requestRoutesTelemetryService(app);
-    requestRoutesMetricReportDefinitionCollection(app);
-    requestRoutesMetricReportDefinition(app);
-    requestRoutesMetricReportCollection(app);
-    requestRoutesMetricReport(app);
-    requestRoutesTriggerCollection(app);
-    requestRoutesTrigger(app);
+    if constexpr (BMCWEB_REDFISH_AGGREGATION)
+    {
+        requestRoutesTelemetryService(app);
+        requestRoutesMetricReportDefinitionCollection(app);
+        requestRoutesMetricReportDefinition(app);
+        requestRoutesMetricReportCollection(app);
+        requestRoutesMetricReport(app);
+        requestRoutesTriggerCollection(app);
+        requestRoutesTrigger(app);
+    }
 
     // Note, this must be the last route registered
     requestRoutesRedfish(app);

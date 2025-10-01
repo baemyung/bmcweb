@@ -8,6 +8,7 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/small_vector.hpp>
 
+#include <cassert>
 #include <cstddef>
 #include <format>
 #include <functional>
@@ -238,6 +239,9 @@ class Trie
                         continue;
                     }
                     found = true;
+
+                    assert(idx < nodes.size());
+
                     ContainedType& node = nodes[idx];
                     size_t* param = &node.stringParamChild;
                     if (str1 == "<path>")
@@ -321,7 +325,8 @@ class Trie
 
     unsigned newNode()
     {
-        nodes.resize(nodes.size() + 1);
+        // nodes.resize(nodes.size() + 1);
+        nodes.push_back(ContainedType());
         return static_cast<unsigned>(nodes.size() - 1);
     }
 
