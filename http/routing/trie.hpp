@@ -237,18 +237,38 @@ class Trie
                     {
                         continue;
                     }
+
+                    if (idx >= nodes.size())
+                    {
+                        throw std::runtime_error(
+                            std::format("Idx is out-of-bound idx={}, size={}",
+                                        idx, nodes.size()));
+                        return;
+                    }
+
                     found = true;
-                    ContainedType& node = nodes[idx];
-                    size_t* param = &node.stringParamChild;
+
+                    ContainedType* node = &nodes[idx];
                     if (str1 == "<path>")
                     {
-                        param = &node.pathParamChild;
+                        if (node->pathParamChild == 0U)
+                        {
+                            size_t newIdx = newNode();
+                            node = &nodes[idx];
+                            node->pathParamChild = newIdx;
+                        }
+                        idx = node->pathParamChild;
                     }
-                    if (*param == 0U)
+                    else
                     {
-                        *param = newNode();
+                        if (node->stringParamChild == 0U)
+                        {
+                            size_t newIdx = newNode();
+                            node = &nodes[idx];
+                            node->stringParamChild = newIdx;
+                        }
+                        idx = node->stringParamChild;
                     }
-                    idx = *param;
 
                     url.remove_prefix(str1.size());
                     break;
