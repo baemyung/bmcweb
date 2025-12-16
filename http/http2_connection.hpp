@@ -16,6 +16,7 @@
 // NOLINTNEXTLINE(misc-include-cleaner)
 #include "nghttp2_adapters.hpp"
 #include "sessions.hpp"
+#include "utils/sw_utils.hpp"
 
 #include <nghttp2/nghttp2.h>
 #include <unistd.h>
@@ -39,6 +40,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <span>
 #include <string>
 #include <string_view>
@@ -49,6 +51,12 @@
 namespace crow
 {
 
+static int& countCodeUpdateInflightRequests()
+{
+    static int countInflightRequests = 0;
+    return countInflightRequests;
+}
+
 struct Http2StreamData
 {
     std::shared_ptr<Request> req = std::make_shared<Request>();
@@ -57,6 +65,37 @@ struct Http2StreamData
     std::string acceptEnc;
     Response res;
     std::optional<bmcweb::HttpBody::writer> writer;
+    bool isReqForCodeUpdate = false; // Track whether the req is for CodeUpdate
+
+    void clearRequestForCodeUpdate(
+        const std::source_location& loc = std::source_location::current())
+    {
+        BMCWEB_LOG_ERROR(
+            "TEST:{} Http2StreamData::clearXRequestForCodeUpdate-loc:{},{},  countCodeUpdateInflightRequests={}, isReqForCodeUpdate={}",
+            logPtr(this), loc.file_name(), loc.line(),
+            countCodeUpdateInflightRequests(), isReqForCodeUpdate);
+
+        if (isReqForCodeUpdate)
+        {
+            isReqForCodeUpdate = false;
+            countCodeUpdateInflightRequests()--;
+
+            BMCWEB_LOG_ERROR(
+                "TEST:{} Http2StreamData::clearXRequestForCodeUpdate-loc:{},{},  countCodeUpdateInflightRequests={}",
+                logPtr(this), loc.file_name(), loc.line(),
+                countCodeUpdateInflightRequests());
+        }
+    }
+
+    Http2StreamData() = default;
+    Http2StreamData(Http2StreamData&&) = delete;
+    Http2StreamData& operator=(const Http2StreamData&) = delete;
+    Http2StreamData& operator=(Http2StreamData&&) = delete;
+
+    ~Http2StreamData()
+    {
+        clearRequestForCodeUpdate();
+    }
 };
 
 template <typename Adaptor, typename Handler>
@@ -276,6 +315,72 @@ class HTTP2Connection :
         return session;
     }
 
+    int onRequestHeaderRecv(int32_t streamId)
+    {
+        BMCWEB_LOG_ERROR(
+            "TEST:{} onRequestHeaderRecv NGHTTP2_FLAG_END_HEADERS, streamId={}",
+            logPtr(this), streamId);
+
+        auto it = streams.find(streamId);
+        if (it == streams.end())
+        {
+            BMCWEB_LOG_ERROR("Unknown stream{}", streamId);
+            close();
+            return -1;
+        }
+
+        Http2StreamData& stream = it->second;
+        Request& thisReq = *stream.req;
+
+        BMCWEB_LOG_ERROR("TEST:{} onRequestHeaderRecv Req method={}, target={}",
+                         logPtr(this), thisReq.methodString(),
+                         thisReq.target());
+
+        if (!redfish::sw_util::checkPostForCodeUpdate(thisReq.method(),
+                                                      thisReq.target()))
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST:{} onRequestHeaderRecv Req method={}, target={} --> checkPostForCodeUpdate NONE",
+                logPtr(this), thisReq.methodString(), thisReq.target());
+            return 0;
+        }
+
+        BMCWEB_LOG_ERROR(
+            "TEST:{} - onRequestHeaderRecv, countCodeUpdateInflightRequests={},  fwUpdateInProgress={}",
+            logPtr(this), countCodeUpdateInflightRequests(),
+            redfish::sw_util::fwUpdateInProgress());
+
+        if ((countCodeUpdateInflightRequests() > 0) ||
+            redfish::sw_util::fwUpdateInProgress())
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST:{}, onRequestHeaderRecv POST UPDATE DUPPPPPP, countCodeUpdateInflightRequests()={}, fwUpdateInProgress={}",
+                logPtr(this), countCodeUpdateInflightRequests(),
+                redfish::sw_util::fwUpdateInProgress());
+
+            redfish::messages::serviceTemporarilyUnavailable(stream.res, "30");
+
+            if (sendResponse(stream.res, streamId) != 0)
+            {
+                close();
+                return -1;
+            }
+
+            BMCWEB_LOG_ERROR(
+                "TEST: onRequestHeaderRecv  SEND nghttp2_submit_rst_stream");
+
+            nghttp2_submit_rst_stream(&ngSession, NGHTTP2_FLAG_NONE, streamId,
+                                      NGHTTP2_REFUSED_STREAM);
+            return 0;
+        }
+
+        // Remember this stream as CodeUpdate request
+        stream.isReqForCodeUpdate = true;
+        countCodeUpdateInflightRequests()++;
+
+        return 0;
+    }
+
     int onRequestRecv(int32_t streamId)
     {
         BMCWEB_LOG_DEBUG("on_request_recv");
@@ -307,6 +412,9 @@ class HTTP2Connection :
                          thisReq.url().encoded_path());
 
         Response& thisRes = it->second.res;
+
+        BMCWEB_LOG_ERROR("TEST:{}, {}, onRequestRecv thisReq.body.size={}",
+                         logPtr(this), logPtr(&thisReq), thisReq.body().size());
 
         thisRes.setCompleteRequestHandler(
             [this, streamId](Response& completeRes) {
@@ -343,6 +451,10 @@ class HTTP2Connection :
             asyncResp->res.setExpectedEtag(expectedEtag);
         }
         handler->handle(it->second.req, asyncResp);
+
+        BMCWEB_LOG_ERROR("TEST: after handle() --> clear");
+        it->second.clearRequestForCodeUpdate();
+
         return 0;
     }
 
@@ -392,10 +504,41 @@ class HTTP2Connection :
     int onFrameRecvCallback(const nghttp2_frame& frame)
     {
         BMCWEB_LOG_DEBUG("frame type {}", static_cast<int>(frame.hd.type));
+        BMCWEB_LOG_INFO(
+            "TEST:{}, INFO: onFrameRecvCallback, frame type {}, flags={:#x}",
+            logPtr(this), static_cast<int>(frame.hd.type), frame.hd.flags);
+
         switch (frame.hd.type)
         {
             case NGHTTP2_DATA:
             case NGHTTP2_HEADERS:
+
+                // Check that the client request header has finished
+                if ((frame.hd.flags & NGHTTP2_FLAG_END_HEADERS) != 0)
+                {
+                    BMCWEB_LOG_ERROR(
+                        "TEST:{}, onFrameRecvCallback NGHTTP2_FLAG_END_HEADERS, streamId={}, frame.hd.flags={:x}",
+                        logPtr(this), frame.hd.stream_id, frame.hd.flags);
+
+                    int rc = onRequestHeaderRecv(frame.hd.stream_id);
+
+                    BMCWEB_LOG_ERROR(
+                        "TEST:{}, onFrameRecvCallback-Returned  NGHTTP2_FLAG_END_HEADERS, streamId={}, rc={}",
+                        logPtr(this), frame.hd.stream_id, rc);
+                    if (rc)
+                    {
+                        return rc;
+                    }
+                }
+
+                // Check that the client request has finished
+                if ((frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0)
+                {
+                    BMCWEB_LOG_ERROR(
+                        "TEST:{}, onFrameRecvCallback NGHTTP2_FLAG_END_STREAM, streamId={}, frame.hd.flags={:x}",
+                        logPtr(this), frame.hd.stream_id, frame.hd.flags);
+                }
+
                 // Check that the client request has finished
                 if ((frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0)
                 {
@@ -445,6 +588,11 @@ class HTTP2Connection :
             BMCWEB_LOG_CRITICAL("user data was null?");
             return NGHTTP2_ERR_CALLBACK_FAILURE;
         }
+
+        BMCWEB_LOG_ERROR(
+            "TEST:{},  CLOSE:: onStreamCloseCallbackStatic streamId={} ==> erase",
+            logPtr(&userPtrToSelf(userData)), streamId);
+
         if (userPtrToSelf(userData).streams.erase(streamId) <= 0)
         {
             return -1;
@@ -546,6 +694,9 @@ class HTTP2Connection :
             frame.headers.cat == NGHTTP2_HCAT_REQUEST)
         {
             BMCWEB_LOG_DEBUG("create stream for id {}", frame.hd.stream_id);
+
+            BMCWEB_LOG_ERROR("TEST:{} onBeginHeadersCallback CREATE ID={}",
+                             logPtr(this), frame.hd.stream_id);
 
             streams[frame.hd.stream_id];
             if (ngSession.setLocalWindowSize(
