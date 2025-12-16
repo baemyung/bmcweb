@@ -18,6 +18,7 @@
 #include "sessions.hpp"
 #include "str_utility.hpp"
 #include "utility.hpp"
+#include "utils/sw_utils.hpp"
 
 #include <boost/asio/error.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -62,6 +63,9 @@ namespace crow
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static int connectionCount = 0;
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static int countCodeUpdateInflightRequests = 0;
+
 // request body limit size set by the BMCWEB_HTTP_BODY_LIMIT option
 constexpr uint64_t httpReqBodyLimit = 1024UL * 1024UL * BMCWEB_HTTP_BODY_LIMIT;
 
@@ -93,6 +97,8 @@ class Connection :
 
     ~Connection()
     {
+        clearRequestForCodeUpdate();
+
         res.releaseCompleteRequestHandler();
         cancelDeadlineTimer();
 
@@ -105,6 +111,15 @@ class Connection :
     Connection(Connection&&) = delete;
     Connection& operator=(const Connection&) = delete;
     Connection& operator=(Connection&&) = delete;
+
+    void clearRequestForCodeUpdate()
+    {
+        if (isReqForCodeUpdate)
+        {
+            isReqForCodeUpdate = false;
+            countCodeUpdateInflightRequests--;
+        }
+    }
 
     bool tlsVerifyCallback(bool preverified,
                            boost::asio::ssl::verify_context& ctx)
@@ -602,6 +617,8 @@ class Connection :
 
         if (ec)
         {
+            clearRequestForCodeUpdate();
+
             cancelDeadlineTimer();
 
             if (ec == boost::beast::http::error::header_limit)
@@ -629,11 +646,35 @@ class Connection :
         auto& parse = *parser;
         const auto& value = parser->get();
 
+        if (!isReqForCodeUpdate && parser->is_header_done() &&
+            value.method() == boost::beast::http::verb::post)
+        {
+            isReqForCodeUpdate = redfish::sw_util::checkPostForCodeUpdate(
+                parser->get().method(), parser->get().target());
+
+            if (isReqForCodeUpdate)
+            {
+                countCodeUpdateInflightRequests++;
+            }
+        }
+
         if (authenticationEnabled)
         {
             boost::beast::http::verb method = value.method();
             userSession = authentication::authenticate(
                 ip, res, method, value.base(), mtlsSession);
+        }
+
+        if (isReqForCodeUpdate && ((countCodeUpdateInflightRequests > 1) ||
+                                   redfish::sw_util::fwUpdateInProgress()))
+        {
+            clearRequestForCodeUpdate();
+
+            cancelDeadlineTimer();
+            redfish::messages::serviceTemporarilyUnavailable(res, "30");
+            keepAlive = false;
+            doWrite();
+            return;
         }
 
         std::string_view expect = value[boost::beast::http::field::expect];
@@ -654,6 +695,8 @@ class Connection :
         if (parse.is_done())
         {
             handle();
+
+            clearRequestForCodeUpdate();
             return;
         }
 
@@ -696,10 +739,13 @@ class Connection :
         {
             BMCWEB_LOG_ERROR("{} Error while reading: {}", logPtr(this),
                              ec.message());
+
             if (ec == boost::beast::http::error::body_limit)
             {
                 if (handleContentLengthError())
                 {
+                    clearRequestForCodeUpdate();
+
                     BMCWEB_LOG_CRITICAL("Body length limit reached, "
                                         "but no content-length "
                                         "available?  Should never happen");
@@ -710,6 +756,9 @@ class Connection :
                 }
                 return;
             }
+
+            clearRequestForCodeUpdate();
+
             BMCWEB_LOG_WARNING("{} End of stream, closing {}", logPtr(this),
                                ec);
             hardClose();
@@ -731,6 +780,7 @@ class Connection :
             BMCWEB_LOG_ERROR("Parser was unexpectedly null");
             return;
         }
+
         if (!parser->is_done())
         {
             doRead();
@@ -738,7 +788,10 @@ class Connection :
         }
 
         cancelDeadlineTimer();
+
         handle();
+
+        clearRequestForCodeUpdate();
     }
 
     void doRead()
@@ -819,6 +872,8 @@ class Connection :
             gracefulClose();
             return;
         }
+
+        clearRequestForCodeUpdate();
 
         BMCWEB_LOG_DEBUG("{} Clearing response", logPtr(this));
         res.clear();
@@ -955,6 +1010,9 @@ class Connection :
     bool timerStarted = false;
 
     std::function<std::string()>& getCachedDateStr;
+
+    // Track whether the req is for CodeUpdate after header-read
+    bool isReqForCodeUpdate = false;
 
     using std::enable_shared_from_this<
         Connection<Adaptor, Handler>>::shared_from_this;
