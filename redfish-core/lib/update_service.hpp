@@ -62,6 +62,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -1108,6 +1109,10 @@ inline void doHTTPUpdate(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
         std::vector<std::string> targets;
         targets.emplace_back(BMCWEB_REDFISH_MANAGER_URI_NAME);
 
+        BMCWEB_LOG_ERROR("TEST: doHTTPUpdate req.body.size={}",
+                         req.body().size());
+        ::waitIfNeeded("doHTTPUpdate-1");
+
         processUpdateRequest(
             asyncResp, std::move(payload), req.body(),
             "xyz.openbmc_project.Software.ApplyTime.RequestedApplyTimes.Immediate",
@@ -1119,6 +1124,10 @@ inline void doHTTPUpdate(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
         monitorForSoftwareAvailable(asyncResp, req,
                                     "/redfish/v1/UpdateService");
 
+        BMCWEB_LOG_ERROR(
+            "TEST: doHTTPUpdate req.body.size={} .. via uploadImageFile",
+            req.body().size());
+        ::waitIfNeeded("doHTTPUpdate-2");
         uploadImageFile(asyncResp->res, req.body());
     }
 }
@@ -1135,7 +1144,14 @@ inline void handleUpdateServicePost(
 
     BMCWEB_LOG_DEBUG("doPost: contentType={}", contentType);
 
-    // Make sure that content type is application/octet-stream
+    BMCWEB_LOG_ERROR(
+        "TEST:TEST: handleUpdateServicePost BEGIN-BEGIN-BEGIN fwProgress={}",
+        sw_util::fwUpdateInProgress());
+
+    ::waitIfNeeded("handleUpdateServicePost");
+
+    // Make sure that content type is application/octet-stream or
+    // multipart/form-data
     if (bmcweb::asciiIEquals(contentType, "application/octet-stream"))
     {
         doHTTPUpdate(asyncResp, req);
