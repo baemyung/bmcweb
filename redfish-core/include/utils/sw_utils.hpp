@@ -45,11 +45,16 @@ constexpr const char* bmcPurpose =
     "xyz.openbmc_project.Software.Version.VersionPurpose.BMC";
 
 // Only allow one update at a time
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 inline bool& fwUpdateInProgress()
 {
     static bool updateInProgress = false;
     return updateInProgress;
+}
+
+static int& countCodeUpdateInflightRequests()
+{
+    static int countInflightRequests = 0;
+    return countInflightRequests;
 }
 
 /**

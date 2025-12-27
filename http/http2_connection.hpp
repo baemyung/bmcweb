@@ -16,6 +16,7 @@
 // NOLINTNEXTLINE(misc-include-cleaner)
 #include "nghttp2_adapters.hpp"
 #include "sessions.hpp"
+#include "utils/sw_utils.hpp"
 
 #include <nghttp2/nghttp2.h>
 #include <unistd.h>
@@ -39,6 +40,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <span>
 #include <string>
 #include <string_view>
@@ -57,6 +59,16 @@ struct Http2StreamData
     std::string acceptEnc;
     Response res;
     std::optional<bmcweb::HttpBody::writer> writer;
+
+    Http2StreamData()
+    {
+        BMCWEB_LOG_ERROR("TEST: Http2StreamData CTOR {}", logPtr(this));
+    }
+
+    ~Http2StreamData()
+    {
+        BMCWEB_LOG_ERROR("TEST: Http2StreamData DTOR {}", logPtr(this));
+    }
 };
 
 template <typename Adaptor, typename Handler>
@@ -74,6 +86,21 @@ class HTTP2Connection :
         ngSession(initializeNghttp2Session()), handler(handlerIn),
         getCachedDateStr(getCachedDateStrF), mtlsSession(mtlsSessionIn)
     {}
+
+    void clearRequestForCodeUpdate(
+        const std::source_location& loc = std::source_location::current())
+    {
+        if (isReqForCodeUpdate)
+        {
+            isReqForCodeUpdate = false;
+            redfish::sw_util::countCodeUpdateInflightRequests()--;
+
+            BMCWEB_LOG_ERROR(
+                "TEST:{} clearRequestForCodeUpdate-loc:{},{},  countCodeUpdateInflightRequests={}",
+                logPtr(this), loc.file_name(), loc.line(),
+                redfish::sw_util::countCodeUpdateInflightRequests());
+        }
+    }
 
     void start()
     {
@@ -308,8 +335,8 @@ class HTTP2Connection :
 
         Response& thisRes = it->second.res;
 
-        BMCWEB_LOG_ERROR("TEST: onRequestRecv thisReq.body.size={}",
-                         thisReq.body().size());
+        BMCWEB_LOG_ERROR("TEST:{}, {}, onRequestRecv thisReq.body.size={}",
+                         logPtr(this), logPtr(&thisReq), thisReq.body().size());
 
         thisRes.setCompleteRequestHandler(
             [this, streamId](Response& completeRes) {
@@ -346,6 +373,10 @@ class HTTP2Connection :
             asyncResp->res.setExpectedEtag(expectedEtag);
         }
         handler->handle(it->second.req, asyncResp);
+
+        BMCWEB_LOG_ERROR("TEST: after handle() --> clear");
+        clearRequestForCodeUpdate();
+
         return 0;
     }
 
@@ -395,23 +426,82 @@ class HTTP2Connection :
     int onFrameRecvCallback(const nghttp2_frame& frame)
     {
         BMCWEB_LOG_DEBUG("frame type {}", static_cast<int>(frame.hd.type));
+        BMCWEB_LOG_INFO(
+            "TEST:{}, INFO: onFrameRecvCallback, frame type {}, flags={:#x}",
+            logPtr(this), static_cast<int>(frame.hd.type), frame.hd.flags);
+
         switch (frame.hd.type)
         {
             case NGHTTP2_DATA:
             case NGHTTP2_HEADERS:
 
-                if ((frame.hd.flags & NGHTTP2_FLAG_END_HEADERS) != 0)
+                if (1 && (frame.hd.flags & NGHTTP2_FLAG_END_HEADERS) != 0)
                 {
+                    int32_t streamId = frame.hd.stream_id;
                     BMCWEB_LOG_ERROR(
-                        "TEST: onFrameRecvCallback NGHTTP2_FLAG_END_HEADERS");
+                        "TEST:{}, onFrameRecvCallback NGHTTP2_FLAG_END_HEADERS, streamId={}",
+                        logPtr(this), streamId);
 
-                    auto thisStream = streams.find(frame.hd.stream_id);
+                    auto thisStream = streams.find(streamId);
                     if (thisStream != streams.end())
                     {
                         Request& thisReq = *thisStream->second.req;
-                        BMCWEB_LOG_ERROR("TEST: Req method={}, target={}",
-                                         thisReq.methodString(),
+                        BMCWEB_LOG_ERROR("TEST:{} Req method={}, target={}",
+                                         logPtr(this), thisReq.methodString(),
                                          thisReq.target());
+
+                        if (!isReqForCodeUpdate &&
+                            thisReq.method() == boost::beast::http::verb::post)
+                        {
+                            isReqForCodeUpdate =
+                                redfish::sw_util::checkPostForCodeUpdate(
+                                    thisReq.method(), thisReq.target());
+
+                            if (isReqForCodeUpdate)
+                            {
+                                redfish::sw_util::
+                                    countCodeUpdateInflightRequests()++;
+
+                                BMCWEB_LOG_ERROR(
+                                    "TEST:{}, onFrameRecvCallback POST UPDATE, redfish::sw_util::countCodeUpdateInflightRequests()={}",
+                                    logPtr(this),
+                                    redfish::sw_util::
+                                        countCodeUpdateInflightRequests());
+                            }
+                        }
+
+                        if (isReqForCodeUpdate &&
+                            ((redfish::sw_util::
+                                  countCodeUpdateInflightRequests() > 1) ||
+                             redfish::sw_util::fwUpdateInProgress()))
+                        {
+                            BMCWEB_LOG_ERROR(
+                                "TEST:{}, onFrameRecvCallback POST UPDATE DUPPPPPP, redfish::sw_util::countCodeUpdateInflightRequests()={}, fwUpdateInProgress={}",
+                                logPtr(this),
+                                redfish::sw_util::
+                                    countCodeUpdateInflightRequests(),
+                                redfish::sw_util::fwUpdateInProgress());
+
+                            redfish::messages::serviceTemporarilyUnavailable(
+                                thisStream->second.res, "30");
+
+                            if (sendResponse(thisStream->second.res,
+                                             streamId) != 0)
+                            {
+                                close();
+                            }
+
+                            clearRequestForCodeUpdate();
+
+                            BMCWEB_LOG_ERROR(
+                                "TEST: SEND nghttp2_submit_rst_stream");
+
+                            nghttp2_submit_rst_stream(
+                                &ngSession, NGHTTP2_FLAG_NONE, streamId,
+                                NGHTTP2_REFUSED_STREAM);
+
+                            return 0;
+                        }
                     }
                 }
 
@@ -419,7 +509,8 @@ class HTTP2Connection :
                 if ((frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0)
                 {
                     BMCWEB_LOG_ERROR(
-                        "TEST: onFrameRecvCallback NGHTTP2_FLAG_END_STREAM");
+                        "TEST:{}, onFrameRecvCallback NGHTTP2_FLAG_END_STREAM, streamId={}",
+                        logPtr(this), frame.hd.stream_id);
                 }
 
                 // Check that the client request has finished
@@ -471,6 +562,11 @@ class HTTP2Connection :
             BMCWEB_LOG_CRITICAL("user data was null?");
             return NGHTTP2_ERR_CALLBACK_FAILURE;
         }
+
+        BMCWEB_LOG_ERROR(
+            "TEST:{},  CLOSE:: onStreamCloseCallbackStatic streamId={} ==> erase",
+            logPtr(&userPtrToSelf(userData)), streamId);
+
         if (userPtrToSelf(userData).streams.erase(streamId) <= 0)
         {
             return -1;
@@ -534,6 +630,56 @@ class HTTP2Connection :
         {
             thisReq.addHeader(nameSv, valueSv);
         }
+
+        if (0 && (frame.hd.flags & NGHTTP2_FLAG_END_HEADERS) != 0)
+        {
+            BMCWEB_LOG_ERROR(
+                "TEST:{} HEADER: onHeaderCallback NGHTTP2_FLAG_END_HEADERS, streamId={}",
+                logPtr(this), frame.hd.stream_id);
+
+            BMCWEB_LOG_ERROR("TEST:{}, Req method={}, target={}", logPtr(this),
+                             thisReq.methodString(), thisReq.target());
+
+            if (!isReqForCodeUpdate &&
+                thisReq.method() == boost::beast::http::verb::post)
+            {
+                isReqForCodeUpdate = redfish::sw_util::checkPostForCodeUpdate(
+                    thisReq.method(), thisReq.target());
+
+                if (isReqForCodeUpdate)
+                {
+                    redfish::sw_util::countCodeUpdateInflightRequests()++;
+
+                    BMCWEB_LOG_ERROR(
+                        "TEST:{},  onHeaderCallback POST UPDATE, redfish::sw_util::countCodeUpdateInflightRequests()={}",
+                        logPtr(this),
+                        redfish::sw_util::countCodeUpdateInflightRequests());
+                }
+            }
+
+            if (isReqForCodeUpdate &&
+                ((redfish::sw_util::countCodeUpdateInflightRequests() > 1) ||
+                 redfish::sw_util::fwUpdateInProgress()))
+            {
+                BMCWEB_LOG_ERROR(
+                    "TEST:{}, onHeaderCallback POST UPDATE DUPPPPPP, redfish::sw_util::countCodeUpdateInflightRequests()={}, fwUpdateInProgress={}",
+                    logPtr(this),
+                    redfish::sw_util::countCodeUpdateInflightRequests(),
+                    redfish::sw_util::fwUpdateInProgress());
+
+                redfish::messages::serviceTemporarilyUnavailable(
+                    thisStream->second.res, "30");
+
+                clearRequestForCodeUpdate();
+                if (sendResponse(thisStream->second.res, frame.hd.stream_id) !=
+                    0)
+                {
+                    close();
+                }
+                return 0;
+            }
+        }
+
         return 0;
     }
 
@@ -572,6 +718,9 @@ class HTTP2Connection :
             frame.headers.cat == NGHTTP2_HCAT_REQUEST)
         {
             BMCWEB_LOG_DEBUG("create stream for id {}", frame.hd.stream_id);
+
+            BMCWEB_LOG_ERROR("TEST:{} onBeginHeadersCallback CREATE ID={}",
+                             logPtr(this), frame.hd.stream_id);
 
             streams[frame.hd.stream_id];
             if (ngSession.setLocalWindowSize(
@@ -644,6 +793,7 @@ class HTTP2Connection :
 
     void close()
     {
+        clearRequestForCodeUpdate();
         adaptor.next_layer().close();
     }
 
@@ -714,6 +864,9 @@ class HTTP2Connection :
     std::function<std::string()>& getCachedDateStr;
 
     std::shared_ptr<persistent_data::UserSession> mtlsSession;
+
+    // Track whether the req is for CodeUpdate after header-read
+    bool isReqForCodeUpdate = false;
 
     using std::enable_shared_from_this<
         HTTP2Connection<Adaptor, Handler>>::shared_from_this;

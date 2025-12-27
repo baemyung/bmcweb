@@ -63,9 +63,6 @@ namespace crow
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static int connectionCount = 0;
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static int countCodeUpdateInflightRequests = 0;
-
 // request body limit size set by the BMCWEB_HTTP_BODY_LIMIT option
 constexpr uint64_t httpReqBodyLimit = 1024UL * 1024UL * BMCWEB_HTTP_BODY_LIMIT;
 
@@ -117,7 +114,7 @@ class Connection :
         if (isReqForCodeUpdate)
         {
             isReqForCodeUpdate = false;
-            countCodeUpdateInflightRequests--;
+            redfish::sw_util::countCodeUpdateInflightRequests()--;
         }
     }
 
@@ -654,11 +651,11 @@ class Connection :
 
             if (isReqForCodeUpdate)
             {
-                countCodeUpdateInflightRequests++;
+                redfish::sw_util::countCodeUpdateInflightRequests()++;
 
                 BMCWEB_LOG_ERROR(
-                    "TEST: afterReadHeaders POST UPDATE, countCodeUpdateInflightRequests={}",
-                    countCodeUpdateInflightRequests);
+                    "TEST: afterReadHeaders POST UPDATE, redfish::sw_util::countCodeUpdateInflightRequests()={}",
+                    redfish::sw_util::countCodeUpdateInflightRequests());
             }
         }
 
@@ -669,12 +666,13 @@ class Connection :
                 ip, res, method, value.base(), mtlsSession);
         }
 
-        if (isReqForCodeUpdate && ((countCodeUpdateInflightRequests > 1) ||
-                                   redfish::sw_util::fwUpdateInProgress()))
+        if (isReqForCodeUpdate &&
+            ((redfish::sw_util::countCodeUpdateInflightRequests() > 1) ||
+             redfish::sw_util::fwUpdateInProgress()))
         {
             BMCWEB_LOG_ERROR(
-                "TEST: afterReadHeaders POST UPDATE DUPPPPPP, countCodeUpdateInflightRequests={}",
-                countCodeUpdateInflightRequests);
+                "TEST: afterReadHeaders POST UPDATE DUPPPPPP, redfish::sw_util::countCodeUpdateInflightRequests()={}",
+                redfish::sw_util::countCodeUpdateInflightRequests());
 
             clearRequestForCodeUpdate();
 
