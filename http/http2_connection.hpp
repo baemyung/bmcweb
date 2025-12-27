@@ -308,6 +308,9 @@ class HTTP2Connection :
 
         Response& thisRes = it->second.res;
 
+        BMCWEB_LOG_ERROR("TEST: onRequestRecv thisReq.body.size={}",
+                         thisReq.body().size());
+
         thisRes.setCompleteRequestHandler(
             [this, streamId](Response& completeRes) {
                 BMCWEB_LOG_DEBUG("res.completeRequestHandler called");
@@ -396,6 +399,29 @@ class HTTP2Connection :
         {
             case NGHTTP2_DATA:
             case NGHTTP2_HEADERS:
+
+                if ((frame.hd.flags & NGHTTP2_FLAG_END_HEADERS) != 0)
+                {
+                    BMCWEB_LOG_ERROR(
+                        "TEST: onFrameRecvCallback NGHTTP2_FLAG_END_HEADERS");
+
+                    auto thisStream = streams.find(frame.hd.stream_id);
+                    if (thisStream != streams.end())
+                    {
+                        Request& thisReq = *thisStream->second.req;
+                        BMCWEB_LOG_ERROR("TEST: Req method={}, target={}",
+                                         thisReq.methodString(),
+                                         thisReq.target());
+                    }
+                }
+
+                // Check that the client request has finished
+                if ((frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0)
+                {
+                    BMCWEB_LOG_ERROR(
+                        "TEST: onFrameRecvCallback NGHTTP2_FLAG_END_STREAM");
+                }
+
                 // Check that the client request has finished
                 if ((frame.hd.flags & NGHTTP2_FLAG_END_STREAM) != 0)
                 {

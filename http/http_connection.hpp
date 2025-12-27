@@ -655,6 +655,10 @@ class Connection :
             if (isReqForCodeUpdate)
             {
                 countCodeUpdateInflightRequests++;
+
+                BMCWEB_LOG_ERROR(
+                    "TEST: afterReadHeaders POST UPDATE, countCodeUpdateInflightRequests={}",
+                    countCodeUpdateInflightRequests);
             }
         }
 
@@ -668,6 +672,10 @@ class Connection :
         if (isReqForCodeUpdate && ((countCodeUpdateInflightRequests > 1) ||
                                    redfish::sw_util::fwUpdateInProgress()))
         {
+            BMCWEB_LOG_ERROR(
+                "TEST: afterReadHeaders POST UPDATE DUPPPPPP, countCodeUpdateInflightRequests={}",
+                countCodeUpdateInflightRequests);
+
             clearRequestForCodeUpdate();
 
             cancelDeadlineTimer();
