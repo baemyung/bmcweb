@@ -1413,10 +1413,6 @@ inline void handleAccountServiceGet(
     clientCertificate["Certificates"] = std::move(certificates);
     json["MultiFactorAuth"]["ClientCertificate"] = std::move(clientCertificate);
 
-    getClientCertificates(
-        asyncResp,
-        "/MultiFactorAuth/ClientCertificate/Certificates/Members"_json_pointer);
-
     json["Oem"]["OpenBMC"]["@odata.type"] =
         "#OpenBMCAccountService.v1_0_0.AccountService";
     json["Oem"]["OpenBMC"]["@odata.id"] =
