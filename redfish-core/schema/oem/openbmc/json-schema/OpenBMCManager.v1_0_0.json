@@ -616,7 +616,13 @@
                 }
             },
             "type": "object"
-        }
+        },
+        "Certificates": {
+            "$ref": "http://redfish.dmtf.org/schemas/v1/CertificateCollection.json#/definitions/CertificateCollection",
+            "description": "The link to a collection of certificates for device identity and attestation.",
+            "longDescription": "This property shall contain a link to a resource collection of type `CertificateCollection` that contains certificates for device identity and attestation.",
+            "readonly": true
+        },
     },
     "owningEntity": "OpenBMC",
     "title": "#OpenBMCManager.v1_0_0"

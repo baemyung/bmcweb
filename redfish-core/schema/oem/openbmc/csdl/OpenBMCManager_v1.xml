@@ -357,6 +357,12 @@
           <Annotation Term="OData.Permissions" EnumMember="OData.Permission/ReadWrite"/>
         </Property>
       </ComplexType>
+        <NavigationProperty Name="Certificates" Type="CertificateCollection.CertificateCollection" ContainsTarget="true" Nullable="false">
+          <Annotation Term="OData.Permissions" EnumMember="OData.Permission/Read"/>
+          <Annotation Term="OData.Description" String="The link to a collection of certificates for device identity and attestation."/>
+          <Annotation Term="OData.LongDescription" String="This property shall contain a link to a resource collection of type `CertificateCollection` that contains certificates for device identity and attestation."/>
+          <Annotation Term="OData.AutoExpandReferences"/>
+        </NavigationProperty>
     </Schema>
   </edmx:DataServices>
 </edmx:Edmx>

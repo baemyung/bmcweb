@@ -1513,6 +1513,8 @@ inline void handleGetManagerOpenBmc(
     certificates["@odata.id"] =
         boost::urls::format("/redfish/v1/Managers/{}/Truststore/Certificates",
                             BMCWEB_REDFISH_MANAGER_URI_NAME);
+    certificates["@odata.type"] =
+        "#CertificateCollection.CertificateCollection";
     oemOpenbmc["Certificates"] = std::move(certificates);
 
     if constexpr (BMCWEB_REDFISH_OEM_MANAGER_FAN_DATA)
