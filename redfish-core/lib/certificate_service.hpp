@@ -1000,12 +1000,12 @@ inline void handleHTTPSCertificateCollectionPost(
 
     dbus::utility::async_method_call(
         asyncResp,
-        [asyncResp, certFile](const boost::system::error_code& ec,
-                              const std::string& objectPath) {
+        [asyncResp, certFile, certHttpBody](const boost::system::error_code& ec,
+                                            const std::string& objectPath) {
             if (ec)
             {
                 BMCWEB_LOG_ERROR("DBUS response error: {}", ec);
-                messages::internalError(asyncResp->res);
+                handleError(ec.message(), "", certHttpBody, asyncResp);
                 return;
             }
 
@@ -1116,12 +1116,12 @@ inline void handleLDAPCertificateCollectionPost(
 
     dbus::utility::async_method_call(
         asyncResp,
-        [asyncResp, certFile](const boost::system::error_code& ec,
-                              const std::string& objectPath) {
+        [asyncResp, certFile, certHttpBody](const boost::system::error_code& ec,
+                                            const std::string& objectPath) {
             if (ec)
             {
                 BMCWEB_LOG_ERROR("DBUS response error: {}", ec);
-                messages::internalError(asyncResp->res);
+                handleError(ec.message(), "", certHttpBody, asyncResp);
                 return;
             }
 
@@ -1253,12 +1253,12 @@ inline void handleTrustStoreCertificateCollectionPost(
         std::make_shared<CertificateFile>(certHttpBody);
     dbus::utility::async_method_call(
         asyncResp,
-        [asyncResp, certFile](const boost::system::error_code& ec,
-                              const std::string& objectPath) {
+        [asyncResp, certFile, certHttpBody](const boost::system::error_code& ec,
+                                            const std::string& objectPath) {
             if (ec)
             {
                 BMCWEB_LOG_ERROR("DBUS response error: {}", ec);
-                messages::internalError(asyncResp->res);
+                handleError(ec.message(), "", certHttpBody, asyncResp);
                 return;
             }
 
