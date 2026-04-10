@@ -473,4 +473,13 @@ TEST(IsUPNMatch, MultipleCases)
     EXPECT_FALSE(isUPNMatch("user@region.com", "hostname.domain.com"));
     EXPECT_TRUE(isUPNMatch("user@com", "hostname.region.domain.com"));
 }
+
+TEST(IsUPNMatch, CaseSensitivity)
+{
+    // Domain names are case-insensitive per RFC standards
+    EXPECT_TRUE(isUPNMatch("user@DOMAIN.COM", "host.domain.com"));
+    EXPECT_TRUE(isUPNMatch("user@Domain.Com", "host.DOMAIN.COM"));
+    EXPECT_TRUE(isUPNMatch("user@domain.com", "host.DOMAIN.COM"));
+}
+
 } // namespace
