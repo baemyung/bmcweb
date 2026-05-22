@@ -9,7 +9,7 @@ This document describes two branches created for the upstream bmcweb repository 
 
 ## Branch Overview
 
-### 1. `test-reproduction-client-coredump-caused`
+### 1. `upstream-test-reproduction-client-coredump-caused`
 **Purpose:** Demonstrates the vulnerable code that causes coredumps
 
 **Key Characteristics:**
@@ -19,7 +19,7 @@ This document describes two branches created for the upstream bmcweb repository 
 
 **Latest Commit:** 8325e0d3 (Add aggressive HTTP client crash test)
 
-### 2. `test-reproduction-client-coredump-fixed`
+### 2. `upstream-test-reproduction-client-coredump-fixed`
 **Purpose:** Demonstrates the fixed code that prevents coredumps
 
 **Key Characteristics:**
@@ -117,7 +117,7 @@ static void afterSendData(const std::weak_ptr<ConnectionPool>& weakSelf,
 ```bash
 cd /path/to/bmcweb
 git fetch origin
-git checkout test-reproduction-client-coredump-caused
+git checkout upstream-test-reproduction-client-coredump-caused
 
 # Build
 meson setup build
@@ -133,7 +133,7 @@ ninja -C build
 ```bash
 cd /path/to/bmcweb
 git fetch origin
-git checkout test-reproduction-client-coredump-fixed
+git checkout upstream-test-reproduction-client-coredump-fixed
 
 # Build
 meson setup build
@@ -147,14 +147,14 @@ ninja -C build
 
 ## Commit History Comparison
 
-### Branch: test-reproduction-client-coredump-caused
+### Branch: upstream-test-reproduction-client-coredump-caused
 ```
 8325e0d3 Add aggressive HTTP client crash test (vulnerable version)
 df2c4aac Move to Redfish 2026.1
 [... upstream commits ...]
 ```
 
-### Branch: test-reproduction-client-coredump-fixed
+### Branch: upstream-test-reproduction-client-coredump-fixed
 ```
 d92f20d9 Fix HTTP client coredump vulnerability with defensive checks  <-- KEY FIX
 8325e0d3 Add aggressive HTTP client crash test (vulnerable version)
