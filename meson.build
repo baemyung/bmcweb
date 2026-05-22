@@ -387,5 +387,16 @@ executable(
     install: true,
     install_dir: bindir,
 )
+# HTTP Client Aggressive Test
+executable(
+    'http_client_aggressive_test',
+    'src/http_client_aggressive_test.cpp',
+    include_directories: incdir,
+    dependencies: bmcweb_dependencies,
+    link_with: bmcweblib,
+    install: true,
+    install_dir: bindir,
+)
+
 
 subdir('test')
