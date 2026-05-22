@@ -717,7 +717,22 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
     // Otherwise closes the connection if it is not a keep-alive
     void sendNext(bool keepAlive, uint32_t connId)
     {
+        // Defensive check: validate connId is within bounds
+        if (connId >= connections.size())
+        {
+            BMCWEB_LOG_ERROR("Invalid connId: {} (size: {})", connId,
+                             connections.size());
+            return;
+        }
+
         auto conn = connections[connId];
+
+        // Defensive check: validate connection pointer is not null
+        if (!conn)
+        {
+            BMCWEB_LOG_ERROR("Connection at index {} is null", connId);
+            return;
+        }
 
         // Allow the connection's handler to be deleted
         // This is needed because of Redfish Aggregation passing an
@@ -834,19 +849,21 @@ class ConnectionPool : public std::enable_shared_from_this<ConnectionPool>
                               const std::function<void(Response&)>& resHandler,
                               bool keepAlive, uint32_t connId, Response& res)
     {
+        // Defensive check: validate ConnectionPool is still alive before
+        // executing callback
+        std::shared_ptr<ConnectionPool> self = weakSelf.lock();
+        if (!self)
+        {
+            BMCWEB_LOG_CRITICAL("Failed to capture connection");
+            return;
+        }
+
         // Allow provided callback to perform additional processing of the
-        // request
+        // request (now safe after validation)
         resHandler(res);
 
         // If requests remain in the queue then we want to reuse this
         // connection to send the next request
-        std::shared_ptr<ConnectionPool> self = weakSelf.lock();
-        if (!self)
-        {
-            BMCWEB_LOG_CRITICAL("{} Failed to capture connection",
-                                logPtr(self.get()));
-            return;
-        }
 
         self->sendNext(keepAlive, connId);
     }
