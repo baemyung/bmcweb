@@ -6,14 +6,14 @@
 
 #include <boost/asio/io_context.hpp>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include <chrono>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace
 {
@@ -44,9 +44,9 @@ TEST_F(HttpClientCoredumpTest, DestroyClientDuringAsyncResolve)
         ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
         boost::beast::http::verb::get,
         [&callbackInvoked](crow::Response& /*res*/) {
-        callbackInvoked = true;
-        // If we reach here with a destroyed ConnectionInfo, we'll crash
-    });
+            callbackInvoked = true;
+            // If we reach here with a destroyed ConnectionInfo, we'll crash
+        });
 
     // Process a few events to let async_resolve start
     for (int i = 0; i < 3; ++i)
@@ -93,8 +93,8 @@ TEST_F(HttpClientCoredumpTest, DestroyClientDuringConnect)
         "", boost::urls::url_view("http://127.0.0.1:19999/"),
         ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
         boost::beast::http::verb::get, [](crow::Response& /*res*/) {
-        // Callback that would crash if ConnectionInfo is destroyed
-    });
+            // Callback that would crash if ConnectionInfo is destroyed
+        });
 
     // Let resolve complete and connect start
     for (int i = 0; i < 5; ++i)
@@ -137,8 +137,8 @@ TEST_F(HttpClientCoredumpTest, RapidCreateDestroy)
             "", boost::urls::url_view("http://nonexistent.test:9999/"),
             ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
             boost::beast::http::verb::get, [](crow::Response& /*res*/) {
-            // Would crash if called after destruction
-        });
+                // Would crash if called after destruction
+            });
 
         // Minimal processing before destruction
         ioc.poll();
@@ -176,16 +176,16 @@ TEST_F(HttpClientCoredumpTest, DestroyWithResponseAccess)
         "", boost::urls::url_view("http://invalid.test:9999/"),
         ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
         boost::beast::http::verb::get, [&crashDetected](crow::Response& res) {
-        try
-        {
-            // Simulate accessing response
-            res.result(boost::beast::http::status::ok);
-        }
-        catch (...)
-        {
-            crashDetected = true;
-        }
-    });
+            try
+            {
+                // Simulate accessing response
+                res.result(boost::beast::http::status::ok);
+            }
+            catch (...)
+            {
+                crashDetected = true;
+            }
+        });
 
     // Let async operation start
     for (int i = 0; i < 3; ++i)
@@ -228,12 +228,12 @@ TEST_F(HttpClientCoredumpTest, MultipleClientsStressTest)
 
         client->sendDataWithCallback(
             "",
-            boost::urls::url_view("http://nonexistent" + std::to_string(i) +
-                                  ".test:9999/"),
+            boost::urls::url_view(
+                "http://nonexistent" + std::to_string(i) + ".test:9999/"),
             ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
             boost::beast::http::verb::get, [](crow::Response& /*res*/) {
-            // Would crash if called after destruction
-        });
+                // Would crash if called after destruction
+            });
 
         clients.push_back(client);
     }
