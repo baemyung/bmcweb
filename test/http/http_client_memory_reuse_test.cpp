@@ -1,7 +1,8 @@
 // Test to reproduce coredump through memory reuse
 // This test creates rapid create/destroy cycles to trigger memory reuse
-// where a new ConnectionInfo is allocated at the same address as a destroyed one,
-// causing the old callback's raw 'this' pointer to access the wrong object.
+// where a new ConnectionInfo is allocated at the same address as a destroyed
+// one, causing the old callback's raw 'this' pointer to access the wrong
+// object.
 
 #include "boost_formatters.hpp"
 #include "dbus_singleton.hpp"
@@ -11,13 +12,13 @@
 #include <boost/asio/io_context.hpp>
 #include <sdbusplus/asio/connection.hpp>
 
-#include <gtest/gtest.h>
-
 #include <atomic>
 #include <chrono>
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 namespace
 {
@@ -57,17 +58,19 @@ TEST_F(HttpClientMemoryReuseTest, RapidCyclesWithMemoryReuse)
     {
         auto conn = std::make_shared<crow::ConnectionInfo>(
             ioc, "memory-reuse-test", policy,
-            boost::urls::url_view("http://nonexistent" + std::to_string(cycle) + ".test:9999/"),
+            boost::urls::url_view(
+                "http://nonexistent" + std::to_string(cycle) + ".test:9999/"),
             ensuressl::VerifyCertificate::Verify, cycle);
 
         // Track the connection ID to detect if callback fires for wrong object
         const uint32_t expectedConnId = cycle;
-        
+
         conn->callback = [&callbackCount, &possibleCorruption, expectedConnId](
-                            bool, uint32_t actualConnId, crow::Response&) {
+                             bool, uint32_t actualConnId, crow::Response&) {
             callbackCount.fetch_add(1);
-            
-            // If callback fires with different connId, we have memory corruption!
+
+            // If callback fires with different connId, we have memory
+            // corruption!
             if (actualConnId != expectedConnId)
             {
                 possibleCorruption.store(true);
@@ -77,7 +80,7 @@ TEST_F(HttpClientMemoryReuseTest, RapidCyclesWithMemoryReuse)
         boost::beast::http::request<boost::beast::http::string_body> req;
         req.method(boost::beast::http::verb::get);
         req.target("/");
-        req.set(boost::beast::http::field::host, 
+        req.set(boost::beast::http::field::host,
                 "nonexistent" + std::to_string(cycle) + ".test:9999");
         conn->req = std::move(req);
 
@@ -121,14 +124,16 @@ TEST_F(HttpClientMemoryReuseTest, RapidCyclesWithMemoryReuse)
 
     if (possibleCorruption.load())
     {
-        FAIL() << "MEMORY CORRUPTION DETECTED! Callback fired with wrong connId. "
-               << "This proves the raw 'this' pointer bug.";
+        FAIL()
+            << "MEMORY CORRUPTION DETECTED! Callback fired with wrong connId. "
+            << "This proves the raw 'this' pointer bug.";
     }
     else
     {
         // Test passed, but that doesn't mean the bug doesn't exist
-        // It just means we didn't trigger the exact timing/memory reuse scenario
-        SUCCEED() << "No corruption detected in this run. Callbacks fired: " 
+        // It just means we didn't trigger the exact timing/memory reuse
+        // scenario
+        SUCCEED() << "No corruption detected in this run. Callbacks fired: "
                   << callbackCount.load();
     }
 }
@@ -146,19 +151,21 @@ TEST_F(HttpClientMemoryReuseTest, MemoryPressureTest)
     {
         auto conn = std::make_shared<crow::ConnectionInfo>(
             ioc, "pressure-test", policy,
-            boost::urls::url_view("http://test" + std::to_string(cycle) + ".invalid:9999/"),
+            boost::urls::url_view(
+                "http://test" + std::to_string(cycle) + ".invalid:9999/"),
             ensuressl::VerifyCertificate::Verify, cycle);
 
         // Track the address
         void* addr = conn.get();
-        
+
         // Check if this address was used before
         for (void* prevAddr : addresses)
         {
             if (prevAddr == addr)
             {
                 addressReused.store(true);
-                BMCWEB_LOG_INFO("Address reuse detected at cycle {}: {}", cycle, addr);
+                BMCWEB_LOG_INFO("Address reuse detected at cycle {}: {}", cycle,
+                                addr);
                 break;
             }
         }
@@ -175,13 +182,13 @@ TEST_F(HttpClientMemoryReuseTest, MemoryPressureTest)
         conn->req = std::move(req);
 
         conn->doResolve();
-        
+
         // Minimal processing
         ioc.poll();
-        
+
         // Immediate destruction
         conn.reset();
-        
+
         // Process events
         for (int i = 0; i < 5; ++i)
         {
@@ -206,7 +213,8 @@ TEST_F(HttpClientMemoryReuseTest, MemoryPressureTest)
 
     if (addressReused.load())
     {
-        SUCCEED() << "Address reuse detected - this increases crash probability in production";
+        SUCCEED()
+            << "Address reuse detected - this increases crash probability in production";
     }
     else
     {
