@@ -17,11 +17,13 @@ resolver.async_resolve(
 ### The Problem with std::bind_front
 
 When you call:
+
 ```cpp
 std::bind_front(&ConnectionInfo::afterResolve, this, shared_from_this())
 ```
 
 What happens:
+
 1. **`this` is captured as a RAW POINTER** at bind time
 2. **`shared_from_this()` creates a shared_ptr** at bind time
 3. The bound function object stores BOTH
@@ -49,7 +51,9 @@ conn.reset();  // Or ConnectionPool destroyed
 
 ### The Critical Issue
 
-Even though `shared_from_this()` parameter keeps the object memory alive, **the member function invocation uses the RAW `this` pointer** that was captured at bind time!
+Even though `shared_from_this()` parameter keeps the object memory alive, **the
+member function invocation uses the RAW `this` pointer** that was captured at
+bind time!
 
 ```cpp
 // What std::bind_front does internally:
@@ -61,15 +65,17 @@ auto bound_func = [this_ptr = this, self = shared_from_this()](args...) {
 };
 ```
 
-If the object's `shared_ptr` control block is destroyed and recreated, or if there's any memory reuse, the raw `this` pointer becomes invalid!
+If the object's `shared_ptr` control block is destroyed and recreated, or if
+there's any memory reuse, the raw `this` pointer becomes invalid!
 
 ## The Real Production Scenario
 
 ### Scenario 1: ConnectionPool Destruction
+
 ```cpp
 class ConnectionPool {
     std::vector<std::shared_ptr<ConnectionInfo>> connections;
-    
+
     ~ConnectionPool() {
         connections.clear();  // Destroys all ConnectionInfo
         // But async callbacks still have raw 'this' pointers!
@@ -78,6 +84,7 @@ class ConnectionPool {
 ```
 
 ### Scenario 2: Retry Logic Creates New Object at Same Address
+
 ```cpp
 // First connection attempt
 auto conn1 = std::make_shared<ConnectionInfo>(...);  // Address: 0x1000
@@ -93,6 +100,7 @@ auto conn2 = std::make_shared<ConnectionInfo>(...);  // Might reuse 0x1000!
 ```
 
 ### Scenario 3: The shared_ptr Parameter is Unused
+
 Look at [`http_client.hpp:203`](http/http_client.hpp:203):
 
 ```cpp
@@ -101,7 +109,8 @@ void afterResolve(const std::shared_ptr<ConnectionInfo>& /*self*/,
                                                           UNUSED!
 ```
 
-The `self` parameter is marked as unused! The function body accesses members through implicit `this`:
+The `self` parameter is marked as unused! The function body accesses members
+through implicit `this`:
 
 ```cpp
 void afterResolve(const std::shared_ptr<ConnectionInfo>& /*self*/, ...) {
@@ -115,20 +124,25 @@ void afterResolve(const std::shared_ptr<ConnectionInfo>& /*self*/, ...) {
 }
 ```
 
-So even though `shared_from_this()` keeps the object alive, **the function doesn't use it** - it uses the raw `this` pointer from the member function invocation!
+So even though `shared_from_this()` keeps the object alive, **the function
+doesn't use it** - it uses the raw `this` pointer from the member function
+invocation!
 
 ## Why Our Unit Test Doesn't Crash
 
 Our test doesn't crash because:
+
 1. We create a single `ConnectionInfo`
 2. We destroy it
 3. The `shared_from_this()` parameter keeps it alive during callback
 4. No memory reuse happens in our simple test
-5. The raw `this` pointer, while technically dangling, still points to valid memory
+5. The raw `this` pointer, while technically dangling, still points to valid
+   memory
 
 ## How to Actually Reproduce the Crash
 
 The crash happens when:
+
 1. **Memory is reused**: Object destroyed, new object allocated at same address
 2. **Multiple rapid cycles**: Create/destroy many connections rapidly
 3. **Pool destruction**: ConnectionPool destroyed while callbacks pending
@@ -167,16 +181,22 @@ void afterResolve(const std::weak_ptr<ConnectionInfo>& weakSelf,
 }
 ```
 
-Actually, the REAL fix is simpler - just use `weak_from_this()` in the bind, and the member function invocation will fail safely if the object is destroyed:
+Actually, the REAL fix is simpler - just use `weak_from_this()` in the bind, and
+the member function invocation will fail safely if the object is destroyed:
 
 ```cpp
 std::bind_front(&ConnectionInfo::afterResolve, weak_from_this(), shared_from_this())
 ```
 
-When the callback tries to invoke, it will call `weak_ptr::lock()` first, and if that returns nullptr, the invocation won't happen!
+When the callback tries to invoke, it will call `weak_ptr::lock()` first, and if
+that returns nullptr, the invocation won't happen!
 
 ## Conclusion
 
-The bug is that **`std::bind_front` with a member function pointer captures raw `this`**, and even though `shared_from_this()` parameter keeps the object alive, the member function invocation uses the captured raw pointer, which can become dangling or point to reused memory.
+The bug is that **`std::bind_front` with a member function pointer captures raw
+`this`**, and even though `shared_from_this()` parameter keeps the object alive,
+the member function invocation uses the captured raw pointer, which can become
+dangling or point to reused memory.
 
-The fix using `weak_from_this()` makes the binding check if the object still exists before invoking the member function.
+The fix using `weak_from_this()` makes the binding check if the object still
+exists before invoking the member function.
