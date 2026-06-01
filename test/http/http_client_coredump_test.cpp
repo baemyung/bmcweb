@@ -25,27 +25,24 @@ class HttpClientCoredumpTest : public ::testing::Test
     boost::asio::io_context ioc;
 };
 
-// Test 1: Destroy ConnectionPool immediately after starting async operations
+// Test 1: Destroy HttpClient immediately after starting async operations
 // This is the most likely scenario to trigger the coredump
-TEST_F(HttpClientCoredumpTest, DestroyPoolDuringAsyncResolve)
+TEST_F(HttpClientCoredumpTest, DestroyClientDuringAsyncResolve)
 {
-    std::shared_ptr<crow::ConnectionPool> pool;
+    std::shared_ptr<crow::HttpClient> client;
     bool callbackInvoked = false;
 
-    // Create ConnectionPool with a policy
+    // Create HttpClient with a policy
     auto policy = std::make_shared<crow::ConnectionPolicy>();
     policy->maxRetryAttempts = 0; // No retries to make test faster
 
-    // Create connection pool to a non-existent host
-    pool = std::make_shared<crow::ConnectionPool>(
-        ioc, "test-sub-1", policy,
-        boost::urls::url_view("http://nonexistent.invalid.test:9999/"),
-        crow::ensuressl::VerifyCertificate::Verify);
+    client = std::make_shared<crow::HttpClient>(ioc, policy);
 
-    // Send a request that will trigger async operations
-    pool->sendData(
+    // Send a request that will trigger async operations to non-existent host
+    client->sendDataWithCallback(
         "", boost::urls::url_view("http://nonexistent.invalid.test:9999/"),
-        boost::beast::http::fields(), boost::beast::http::verb::get,
+        ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
+        boost::beast::http::verb::get,
         [&callbackInvoked](crow::Response& /*res*/) {
             callbackInvoked = true;
             // If we reach here with a destroyed ConnectionInfo, we'll crash
@@ -62,9 +59,9 @@ TEST_F(HttpClientCoredumpTest, DestroyPoolDuringAsyncResolve)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    // CRITICAL: Destroy ConnectionPool while async operation is pending
+    // CRITICAL: Destroy HttpClient while async operation is pending
     // This should trigger use-after-free if the bug exists
-    pool.reset();
+    client.reset();
 
     // Continue processing events - the callback may fire with dangling 'this'
     for (int i = 0; i < 50; ++i)
@@ -82,26 +79,23 @@ TEST_F(HttpClientCoredumpTest, DestroyPoolDuringAsyncResolve)
         << "Callback should not be invoked after destruction";
 }
 
-// Test 2: Destroy ConnectionPool during connection attempt
-TEST_F(HttpClientCoredumpTest, DestroyPoolDuringConnect)
+// Test 2: Destroy HttpClient during connection attempt
+TEST_F(HttpClientCoredumpTest, DestroyClientDuringConnect)
 {
-    std::shared_ptr<crow::ConnectionPool> pool;
+    std::shared_ptr<crow::HttpClient> client;
 
     auto policy = std::make_shared<crow::ConnectionPolicy>();
     policy->maxRetryAttempts = 0;
 
-    // Use localhost with a port that's likely closed
-    pool = std::make_shared<crow::ConnectionPool>(
-        ioc, "test-sub-2", policy,
-        boost::urls::url_view("http://127.0.0.1:19999/"),
-        crow::ensuressl::VerifyCertificate::Verify);
+    client = std::make_shared<crow::HttpClient>(ioc, policy);
 
-    pool->sendData("", boost::urls::url_view("http://127.0.0.1:19999/"),
-                   boost::beast::http::fields(), boost::beast::http::verb::get,
-                   [](crow::Response& /*res*/) {
-                       // Callback that would crash if ConnectionInfo is
-                       // destroyed
-                   });
+    // Use localhost with a port that's likely closed
+    client->sendDataWithCallback(
+        "", boost::urls::url_view("http://127.0.0.1:19999/"),
+        ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
+        boost::beast::http::verb::get, [](crow::Response& /*res*/) {
+            // Callback that would crash if ConnectionInfo is destroyed
+        });
 
     // Let resolve complete and connect start
     for (int i = 0; i < 10; ++i)
@@ -115,7 +109,7 @@ TEST_F(HttpClientCoredumpTest, DestroyPoolDuringConnect)
     }
 
     // Destroy during connection attempt
-    pool.reset();
+    client.reset();
 
     // Process remaining events
     for (int i = 0; i < 50; ++i)
@@ -137,18 +131,15 @@ TEST_F(HttpClientCoredumpTest, RapidCreateDestroy)
     auto policy = std::make_shared<crow::ConnectionPolicy>();
     policy->maxRetryAttempts = 0;
 
-    // Create and destroy multiple connection pools rapidly
+    // Create and destroy multiple clients rapidly
     for (int iteration = 0; iteration < 10; ++iteration)
     {
-        auto pool = std::make_shared<crow::ConnectionPool>(
-            ioc, "test-sub-rapid", policy,
-            boost::urls::url_view("http://nonexistent.test:9999/"),
-            crow::ensuressl::VerifyCertificate::Verify);
+        auto client = std::make_shared<crow::HttpClient>(ioc, policy);
 
-        pool->sendData(
+        client->sendDataWithCallback(
             "", boost::urls::url_view("http://nonexistent.test:9999/"),
-            boost::beast::http::fields(), boost::beast::http::verb::get,
-            [](crow::Response& /*res*/) {
+            ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
+            boost::beast::http::verb::get, [](crow::Response& /*res*/) {
                 // Would crash if called after destruction
             });
 
@@ -156,7 +147,7 @@ TEST_F(HttpClientCoredumpTest, RapidCreateDestroy)
         ioc.poll();
 
         // Immediate destruction
-        pool.reset();
+        client.reset();
 
         // Process a few events
         for (int i = 0; i < 5; ++i)
@@ -172,34 +163,32 @@ TEST_F(HttpClientCoredumpTest, RapidCreateDestroy)
     SUCCEED() << "Rapid create/destroy completed without crash";
 }
 
-// Test 4: Destroy ConnectionPool with callback that accesses response
+// Test 4: Destroy HttpClient with callback that accesses response
 TEST_F(HttpClientCoredumpTest, DestroyWithResponseAccess)
 {
-    std::shared_ptr<crow::ConnectionPool> pool;
+    std::shared_ptr<crow::HttpClient> client;
     bool crashDetected = false;
 
     auto policy = std::make_shared<crow::ConnectionPolicy>();
     policy->maxRetryAttempts = 1;
 
-    pool = std::make_shared<crow::ConnectionPool>(
-        ioc, "test-sub-3", policy,
-        boost::urls::url_view("http://invalid.test:9999/"),
-        crow::ensuressl::VerifyCertificate::Verify);
+    client = std::make_shared<crow::HttpClient>(ioc, policy);
 
     // Callback that accesses response object
-    pool->sendData("", boost::urls::url_view("http://invalid.test:9999/"),
-                   boost::beast::http::fields(), boost::beast::http::verb::get,
-                   [&crashDetected](crow::Response& res) {
-                       try
-                       {
-                           // Simulate accessing response
-                           res.result(boost::beast::http::status::ok);
-                       }
-                       catch (...)
-                       {
-                           crashDetected = true;
-                       }
-                   });
+    client->sendDataWithCallback(
+        "", boost::urls::url_view("http://invalid.test:9999/"),
+        ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
+        boost::beast::http::verb::get, [&crashDetected](crow::Response& res) {
+            try
+            {
+                // Simulate accessing response
+                res.result(boost::beast::http::status::ok);
+            }
+            catch (...)
+            {
+                crashDetected = true;
+            }
+        });
 
     // Let async operation start
     for (int i = 0; i < 5; ++i)
@@ -213,7 +202,7 @@ TEST_F(HttpClientCoredumpTest, DestroyWithResponseAccess)
     }
 
     // Destroy while operation is pending
-    pool.reset();
+    client.reset();
 
     // Process events that might trigger the callback
     for (int i = 0; i < 100; ++i)
@@ -229,33 +218,29 @@ TEST_F(HttpClientCoredumpTest, DestroyWithResponseAccess)
     EXPECT_FALSE(crashDetected) << "Crash or exception detected in callback";
 }
 
-// Test 5: Stress test with multiple concurrent connection pools
-TEST_F(HttpClientCoredumpTest, MultiplePoolsStressTest)
+// Test 5: Stress test with multiple concurrent clients
+TEST_F(HttpClientCoredumpTest, MultipleClientsStressTest)
 {
     auto policy = std::make_shared<crow::ConnectionPolicy>();
     policy->maxRetryAttempts = 0;
 
-    std::vector<std::shared_ptr<crow::ConnectionPool>> pools;
+    std::vector<std::shared_ptr<crow::HttpClient>> clients;
 
-    // Create multiple connection pools
+    // Create multiple clients
     for (int i = 0; i < 5; ++i)
     {
-        auto pool = std::make_shared<crow::ConnectionPool>(
-            ioc, "test-sub-multi", policy,
-            boost::urls::url_view(
-                "http://nonexistent" + std::to_string(i) + ".test:9999/"),
-            crow::ensuressl::VerifyCertificate::Verify);
+        auto client = std::make_shared<crow::HttpClient>(ioc, policy);
 
-        pool->sendData(
+        client->sendDataWithCallback(
             "",
             boost::urls::url_view(
                 "http://nonexistent" + std::to_string(i) + ".test:9999/"),
-            boost::beast::http::fields(), boost::beast::http::verb::get,
-            [](crow::Response& /*res*/) {
+            ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
+            boost::beast::http::verb::get, [](crow::Response& /*res*/) {
                 // Would crash if called after destruction
             });
 
-        pools.push_back(pool);
+        clients.push_back(client);
     }
 
     // Process some events
@@ -269,8 +254,8 @@ TEST_F(HttpClientCoredumpTest, MultiplePoolsStressTest)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    // Destroy all pools while operations are pending
-    pools.clear();
+    // Destroy all clients while operations are pending
+    clients.clear();
 
     // Continue processing - this should trigger the bug if it exists
     for (int i = 0; i < 100; ++i)
@@ -283,7 +268,7 @@ TEST_F(HttpClientCoredumpTest, MultiplePoolsStressTest)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    SUCCEED() << "Multiple pools stress test completed without crash";
+    SUCCEED() << "Multiple clients stress test completed without crash";
 }
 
 } // namespace
