@@ -1,36 +1,32 @@
-// Unit test to reproduce ConnectionInfo coredump caused by use-after-free
-// This test demonstrates the bug where ConnectionInfo is destroyed while
-// async operations are pending, causing callbacks to fire with dangling
-// pointers.
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright OpenBMC Authors
 
-#include "http_client.hpp"
+#include "http/http_client.hpp"
 #include "http_response.hpp"
 #include "ssl_key_handler.hpp"
 
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/url/url_view.hpp>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
-#include <vector>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
 namespace
 {
 
-// Test fixture for HTTP client coredump tests
-class HttpClientCoredumpTest : public ::testing::Test
-{
-  protected:
-    boost::asio::io_context ioc;
-};
-
-// Helper to run a simple HTTP server that accepts connections
 class SimpleHttpServer
 {
   public:
@@ -42,15 +38,43 @@ class SimpleHttpServer
         port = acceptor.local_endpoint().port();
     }
 
-    void startAccept()
+    void acceptAndRespondOnce()
     {
-        acceptor.async_accept(socket, [this](boost::system::error_code ec) {
-            if (!ec)
-            {
-                // Connection accepted, close it immediately
-                socket.close();
-            }
-        });
+        acceptAndRespondNTimes(1);
+    }
+
+    void acceptAndRespondNTimes(std::size_t remainingResponses)
+    {
+        acceptor.async_accept(
+            socket, [this, remainingResponses](
+                        const boost::system::error_code& ec) mutable {
+                if (ec)
+                {
+                    return;
+                }
+
+                static constexpr std::string_view response =
+                    "HTTP/1.1 500 Internal Server Error\r\n"
+                    "Content-Length: 0\r\n"
+                    "Connection: close\r\n"
+                    "\r\n";
+
+                boost::asio::async_write(
+                    socket, boost::asio::buffer(response),
+                    [this, remainingResponses](const boost::system::error_code&,
+                                               std::size_t) mutable {
+                        boost::system::error_code ignoredEc;
+                        socket.shutdown(
+                            boost::asio::ip::tcp::socket::shutdown_both,
+                            ignoredEc);
+                        socket.close(ignoredEc);
+
+                        if (remainingResponses > 1)
+                        {
+                            acceptAndRespondNTimes(remainingResponses - 1);
+                        }
+                    });
+            });
     }
 
     uint16_t getPort() const
@@ -61,153 +85,193 @@ class SimpleHttpServer
   private:
     boost::asio::ip::tcp::acceptor acceptor;
     boost::asio::ip::tcp::socket socket;
-    uint16_t port;
+    uint16_t port{};
 };
 
-// Test 1: Destroy client while DNS resolution completes
-// This test uses a real local server to ensure async operations complete
-TEST_F(HttpClientCoredumpTest, DestroyDuringAsyncOperation)
+class HttpClientCoredumpTest : public ::testing::Test
 {
-    // Start a local server
-    SimpleHttpServer server(ioc);
-    server.startAccept();
+  protected:
+    boost::asio::io_context ioc;
+};
 
-    std::atomic<bool> callbackInvoked{false};
-    std::atomic<bool> clientDestroyed{false};
-
-    {
-        auto policy = std::make_shared<crow::ConnectionPolicy>();
-        policy->maxRetryAttempts = 0;
-
-        auto client = std::make_shared<crow::HttpClient>(ioc, policy);
-
-        // Send request to local server
-        std::string url =
-            "http://127.0.0.1:" + std::to_string(server.getPort()) + "/";
-        client->sendDataWithCallback(
-            "", boost::urls::url_view(url),
-            ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
-            boost::beast::http::verb::get,
-            [&callbackInvoked, &clientDestroyed](crow::Response& /*res*/) {
-                callbackInvoked = true;
-                // If client was destroyed and bug exists, this will crash
-                if (clientDestroyed)
-                {
-                    // This is the dangerous scenario - callback after
-                    // destruction
-                    GTEST_FAIL()
-                        << "Callback invoked after client destruction!";
-                }
-            });
-
-        // Run one async operation to start the request
-        ioc.run_one();
-
-        // Mark that we're about to destroy the client
-        clientDestroyed = true;
-
-        // Client destroyed here - if bug exists, pending callbacks may crash
-    }
-
-    // Process any remaining events
-    // With the bug, this may cause a crash
-    // With the fix, callbacks should be safely cancelled
-    while (ioc.poll_one() > 0)
-    {
-        // Keep processing
-    }
-
-    // If callback was invoked after destruction, test should have failed above
-    SUCCEED() << "Test completed without crash";
-}
-
-// Test 2: Multiple rapid create/destroy cycles
-TEST_F(HttpClientCoredumpTest, RapidCreateDestroyCycles)
+TEST_F(HttpClientCoredumpTest, EmptyInvalidRespThrowsBadFunctionCallAfterRead)
 {
     SimpleHttpServer server(ioc);
-    server.startAccept();
+    server.acceptAndRespondOnce();
 
-    for (int i = 0; i < 5; ++i)
-    {
-        auto policy = std::make_shared<crow::ConnectionPolicy>();
-        policy->maxRetryAttempts = 0;
+    auto policy = std::make_shared<crow::ConnectionPolicy>();
+    policy->maxRetryAttempts = 0;
+    policy->invalidResp = {};
 
+    auto client = std::make_unique<crow::HttpClient>(ioc, policy);
+
+    boost::beast::http::fields headers;
+    headers.set(boost::beast::http::field::host, "127.0.0.1");
+
+    const std::string url =
+        "http://127.0.0.1:" + std::to_string(server.getPort()) + "/";
+
+    client->sendDataWithCallback(
+        "", boost::urls::url_view(url), ensuressl::VerifyCertificate::NoVerify,
+        headers, boost::beast::http::verb::get, [](crow::Response&) {});
+
+    EXPECT_THROW(
         {
-            auto client = std::make_shared<crow::HttpClient>(ioc, policy);
-
-            std::string url =
-                "http://127.0.0.1:" + std::to_string(server.getPort()) + "/";
-            client->sendDataWithCallback(
-                "", boost::urls::url_view(url),
-                ensuressl::VerifyCertificate::Verify,
-                boost::beast::http::fields(), boost::beast::http::verb::get,
-                [](crow::Response& /*res*/) {});
-
-            // Start the operation
-            ioc.run_one();
-
-            // Client destroyed immediately
-        }
-
-        // Process remaining events
-        ioc.poll();
-    }
-
-    SUCCEED() << "Rapid cycles completed without crash";
+            try
+            {
+                ioc.run();
+            }
+            catch (const std::bad_function_call&)
+            {
+                throw std::runtime_error("empty invalidResp throws");
+            }
+        },
+        std::runtime_error);
 }
 
-// Test 3: Concurrent clients with destruction
-TEST_F(HttpClientCoredumpTest, ConcurrentClientsDestruction)
+TEST_F(HttpClientCoredumpTest, DefaultInvalidRespDoesNotThrow)
 {
     SimpleHttpServer server(ioc);
-    server.startAccept();
+    server.acceptAndRespondOnce();
 
-    std::vector<std::shared_ptr<crow::HttpClient>> clients;
     auto policy = std::make_shared<crow::ConnectionPolicy>();
     policy->maxRetryAttempts = 0;
 
-    // Create multiple clients
-    for (int i = 0; i < 3; ++i)
-    {
-        auto client = std::make_shared<crow::HttpClient>(ioc, policy);
+    auto client = std::make_unique<crow::HttpClient>(ioc, policy);
 
-        std::string url =
-            "http://127.0.0.1:" + std::to_string(server.getPort()) + "/";
-        client->sendDataWithCallback(
-            "", boost::urls::url_view(url),
-            ensuressl::VerifyCertificate::Verify, boost::beast::http::fields(),
-            boost::beast::http::verb::get, [](crow::Response& /*res*/) {});
+    boost::beast::http::fields headers;
+    headers.set(boost::beast::http::field::host, "127.0.0.1");
 
-        clients.push_back(client);
-    }
+    const std::string url =
+        "http://127.0.0.1:" + std::to_string(server.getPort()) + "/";
 
-    // Start operations
-    ioc.run_one();
+    bool callbackInvoked = false;
+    client->sendDataWithCallback(
+        "", boost::urls::url_view(url), ensuressl::VerifyCertificate::NoVerify,
+        headers, boost::beast::http::verb::get,
+        [&callbackInvoked](crow::Response&) { callbackInvoked = true; });
 
-    // Destroy all clients
-    clients.clear();
-
-    // Process remaining events
-    while (ioc.poll_one() > 0)
-    {
-        // Keep processing
-    }
-
-    SUCCEED() << "Concurrent clients test completed without crash";
+    EXPECT_NO_THROW(ioc.run());
+    EXPECT_TRUE(callbackInvoked);
 }
 
-// Test 4: Basic lifecycle test (should always pass)
-TEST_F(HttpClientCoredumpTest, BasicLifecycleTest)
+TEST_F(HttpClientCoredumpTest, QueuedHandlerCanObserveMovedFromCallbackState)
 {
     auto policy = std::make_shared<crow::ConnectionPolicy>();
-    auto client = std::make_shared<crow::HttpClient>(ioc, policy);
+    policy->maxRetryAttempts = 0;
+    policy->maxConnections = 1;
 
-    // Just create and destroy
-    client.reset();
+    auto client = std::make_unique<crow::HttpClient>(ioc, policy);
 
-    SUCCEED() << "Basic lifecycle test passed";
+    boost::beast::http::fields headers;
+    headers.set(boost::beast::http::field::host, "192.0.2.1");
+
+    std::atomic<bool> firstCallbackInvoked{false};
+
+    std::function<void(crow::Response&)> sharedHandler =
+        [&firstCallbackInvoked](crow::Response&) {
+            firstCallbackInvoked.store(true);
+        };
+
+    std::function<void(crow::Response&)> movedHandler = sharedHandler;
+
+    EXPECT_TRUE(static_cast<bool>(sharedHandler));
+    EXPECT_TRUE(static_cast<bool>(movedHandler));
+
+    client->sendDataWithCallback(
+        "", boost::urls::url_view("http://192.0.2.1:81/"),
+        ensuressl::VerifyCertificate::NoVerify, headers,
+        boost::beast::http::verb::get, movedHandler);
+
+    client->sendDataWithCallback(
+        "", boost::urls::url_view("http://192.0.2.1:81/"),
+        ensuressl::VerifyCertificate::NoVerify, headers,
+        boost::beast::http::verb::get, movedHandler);
+
+    for (int i = 0; i < 200; ++i)
+    {
+        ioc.poll();
+        if (ioc.stopped())
+        {
+            ioc.restart();
+        }
+    }
+
+    EXPECT_FALSE(firstCallbackInvoked.load());
+}
+
+TEST_F(HttpClientCoredumpTest,
+       QueuedRequestHitsEmptyInvalidRespAfterFirstCallbackMutatesState)
+{
+    SimpleHttpServer server(ioc);
+    server.acceptAndRespondNTimes(2);
+
+    auto policy = std::make_shared<crow::ConnectionPolicy>();
+    policy->maxRetryAttempts = 0;
+    policy->maxConnections = 1;
+
+    auto client = std::make_unique<crow::HttpClient>(ioc, policy);
+
+    boost::beast::http::fields headers;
+    headers.set(boost::beast::http::field::host, "127.0.0.1");
+
+    const std::string url =
+        "http://127.0.0.1:" + std::to_string(server.getPort()) + "/";
+
+    std::unique_ptr<crow::HttpClient>* clientPtr = &client;
+    std::atomic<bool> firstCallbackInvoked{false};
+
+    client->sendDataWithCallback(
+        "", boost::urls::url_view(url), ensuressl::VerifyCertificate::NoVerify,
+        headers, boost::beast::http::verb::get,
+        [clientPtr, policy, &firstCallbackInvoked](crow::Response&) {
+            firstCallbackInvoked.store(true);
+            policy->invalidResp = {};
+            clientPtr->reset();
+        });
+
+    client->sendDataWithCallback(
+        "", boost::urls::url_view(url), ensuressl::VerifyCertificate::NoVerify,
+        headers, boost::beast::http::verb::get, [](crow::Response&) {});
+
+    EXPECT_THROW(
+        {
+            try
+            {
+                ioc.run();
+            }
+            catch (const std::bad_function_call&)
+            {
+                throw std::runtime_error(
+                    "queued request hit empty invalidResp");
+            }
+        },
+        std::runtime_error);
+    EXPECT_TRUE(firstCallbackInvoked.load());
+    EXPECT_EQ(client, nullptr);
+}
+
+TEST_F(HttpClientCoredumpTest, PostedHandlerRunsAfterStateMutation)
+{
+    auto policy = std::make_shared<crow::ConnectionPolicy>();
+    policy->maxRetryAttempts = 0;
+
+    std::atomic<bool> handlerInvoked{false};
+
+    boost::asio::post(ioc, [&policy, &handlerInvoked]() {
+        handlerInvoked.store(true);
+        EXPECT_THROW(
+            {
+                if (policy->invalidResp(500))
+                {}
+            },
+            std::bad_function_call);
+    });
+
+    policy->invalidResp = {};
+
+    EXPECT_NO_THROW(ioc.run());
+    EXPECT_TRUE(handlerInvoked.load());
 }
 
 } // namespace
-
-// Made with Bob
