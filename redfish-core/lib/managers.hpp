@@ -888,6 +888,7 @@ inline void handleManagerPatch(
     std::optional<nlohmann::json::object_t> stepwiseControllers;
     std::optional<std::string> profile;
     std::optional<std::string> serviceIdentification;
+    std::optional<bool> usbCodeUpdateEnabled;
 
     if (!json_util::readJsonPatch(                            //
             req, asyncResp->res,                              //
@@ -902,6 +903,7 @@ inline void handleManagerPatch(
             "Oem/OpenBmc/Fan/Profile", profile,               //
             "Oem/OpenBmc/Fan/StepwiseControllers",
             stepwiseControllers,                              //
+            "Oem/IBM/USBCodeUpdateEnabled", usbCodeUpdateEnabled,
             "ServiceIdentification", serviceIdentification,   //
             "TimeZoneName", timeZoneName                      //
             ))
