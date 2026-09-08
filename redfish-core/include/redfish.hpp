@@ -44,6 +44,8 @@ class RedfishService
     template <StringLiteral Rule>
     auto& newRoute(HttpVerb method)
     {
+        constexpr std::string_view rule = Rule;
+        BMCWEB_LOG_ERROR("TEST:TEST:TEST subRequest.newRoute. Rule={}", rule);
         return oemRouter.newRule<Rule>(method);
     }
 
@@ -51,11 +53,18 @@ class RedfishService
         const crow::Request& req,
         const std::shared_ptr<bmcweb::AsyncResp>& asyncResp) const
     {
+        BMCWEB_LOG_ERROR("TEST:TEST:TEST:  handleSubRoute req,url={}",
+                         req.url());
+
         auto subReq = std::make_shared<SubRequest>(req);
         if (!subReq->needHandling())
         {
             return;
         }
+
+        BMCWEB_LOG_ERROR(
+            "TEST:TEST: CALL handleSubRoute, req.url={}, subreq.url={}",
+            req.url(), subReq->url());
         oemRouter.handle(subReq, asyncResp);
     }
 

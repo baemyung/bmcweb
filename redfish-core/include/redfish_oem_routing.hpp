@@ -62,6 +62,9 @@ class OemRouter
         constexpr std::string_view rule = URI;
         constexpr uint64_t numArgs = crow::utility::getParameterTag(rule);
 
+        BMCWEB_LOG_ERROR("TEST:0. OemRouter::newRule, rule={}, numArgs={}",
+                         rule, numArgs);
+
         if constexpr (numArgs == 0)
         {
             using RuleT = OemRule<>;
@@ -125,6 +128,8 @@ class OemRouter
         void internalAdd(std::string_view rule,
                          std::unique_ptr<OemBaseRule>&& ruleObject)
         {
+            BMCWEB_LOG_ERROR("TEST:1: OemRouting-internalAdd: rule={}", rule);
+
             rules.emplace_back(std::move(ruleObject));
             trie.add(rule, static_cast<unsigned>(rules.size() - 1U));
             // request to /resource/#/frag matches /resource#/frag
@@ -135,6 +140,9 @@ class OemRouter
                 url += '#';
                 url += rule.substr(hashPos + 2); // Skip "/#" (2 characters)
                 std::string_view fragRule = url;
+                BMCWEB_LOG_ERROR(
+                    "   TEST:2: OemRouting: PerMethod, rule={}, fragRule={}, Remainder={}",
+                    rule, fragRule, rule.substr(hashPos + 2));
                 trie.add(fragRule, static_cast<unsigned>(rules.size() - 1U));
             }
         }
@@ -223,12 +231,26 @@ class OemRouter
                 const std::shared_ptr<bmcweb::AsyncResp>& asyncResp) const
     {
         BMCWEB_LOG_DEBUG("Checking OEM routes");
+
+        BMCWEB_LOG_ERROR(
+            "TEST: redfish_oem_routing.handle() Checking OEM routes, subreq.url={}",
+            req->url());
+
         FindRouteResponse foundRoute = findRoute(*req);
         std::vector<OemBaseRule*> fragments =
             std::move(foundRoute.route.fragmentRules);
         std::vector<std::string> params = std::move(foundRoute.route.params);
         if (!fragments.empty())
         {
+            BMCWEB_LOG_ERROR(
+                "TEST:ZZZZ: redfish_oem_routing: handle. fragments.size={}",
+                fragments.size());
+            for (auto frag : fragments)
+            {
+                BMCWEB_LOG_ERROR("    TEST:handle OemBaseRule. frag.rule={}",
+                                 frag->rule);
+            }
+
             std::function<void(crow::Response&)> handler =
                 asyncResp->res.releaseCompleteRequestHandler();
             auto multiResp = std::make_shared<bmcweb::AsyncResp>();

@@ -20,6 +20,9 @@ class SubRequest
     explicit SubRequest(const crow::Request& req) :
         url_(req.url().encoded_path()), method_(req.method())
     {
+
+        BMCWEB_LOG_ERROR("TEST:TEST: SubRequest CTOR: req.url={}", req.url());
+        
         // Extract OEM payload if present
         if (req.method() == boost::beast::http::verb::patch ||
             req.method() == boost::beast::http::verb::post)

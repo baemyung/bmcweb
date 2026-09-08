@@ -121,6 +121,8 @@ class SubRouteTrie : public crow::Trie<ContainedType>
 
     void add(std::string_view urlIn, unsigned ruleIndex)
     {
+        BMCWEB_LOG_ERROR("TEST:0: SubTrie.add(url={})", urlIn);
+
         size_t idx = 0;
 
         std::string_view url = urlIn;
@@ -134,6 +136,8 @@ class SubRouteTrie : public crow::Trie<ContainedType>
         {
             fragment = urlIn.substr(fragmentPos + 1);
             url = urlIn.substr(0, fragmentPos);
+            BMCWEB_LOG_ERROR(" TEST:0.1: SubTrie.add(url={}), fragment={}",
+                             urlIn, fragment);
         }
 
         if (fragment.empty())
@@ -228,6 +232,7 @@ class SubRouteTrie : public crow::Trie<ContainedType>
              n.fragmentChildren)
         {
             BMCWEB_LOG_DEBUG("{}#{}", spaces, kv.first);
+            BMCWEB_LOG_ERROR(" TEST:DEBUG.X: {}#{}", spaces, kv.first);
         }
         for (const typename ContainedType::ChildMap::value_type& kv :
              n.children)

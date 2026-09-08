@@ -36,7 +36,10 @@ class OemRule : public OemBaseRule
   public:
     using self_t = OemRule<Args...>;
 
-    explicit OemRule(std::string_view ruleIn) : OemBaseRule(ruleIn) {}
+    explicit OemRule(std::string_view ruleIn) : OemBaseRule(ruleIn)
+    {
+        BMCWEB_LOG_ERROR("TEST: OemRule<>() CTOR, ruleIn={}", ruleIn);
+    }
 
     void validate()
     {
@@ -68,6 +71,17 @@ class OemRule : public OemBaseRule
                 const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                 const std::vector<std::string>& params) override
     {
+        std::string parmlist;
+        for (const auto& p : params)
+        {
+            parmlist += p + " ";
+        }
+
+        BMCWEB_LOG_ERROR(
+            "TEST: redishoemrule handle() Args.count={}, rule={}, subreq.url={}, parms={}",
+            constexpr (sizeof...(Args),
+            rule, req.url(), parmlist);
+
         if constexpr (sizeof...(Args) == 0)
         {
             handler(req, asyncResp);
