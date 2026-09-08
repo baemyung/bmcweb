@@ -1588,6 +1588,12 @@ inline void handlePatchManagerOpenBmc(
     const SubRequest& req, const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& /*managerId*/)
 {
+    if constexpr (BMCWEB_REDFISH_OEM_MANAGER_FAN_DATA)
+    {
+        BMCWEB_LOG_ERROR(
+            "TEST: handlePatchManagerOpenBmc BMCWEB_REDFISH_OEM_MANAGER_FAN_DATA");
+    }
+
     nlohmann::json::object_t payload = req.payload();
 
     std::optional<nlohmann::json::object_t> pidControllers;
@@ -1605,11 +1611,16 @@ inline void handlePatchManagerOpenBmc(
         return;
     }
 
+    BMCWEB_LOG_ERROR("TEST: handlePatchManagerOpenBmc BEGIN, subreq.url={}",
+                     req.url());
+
     if (pidControllers || fanControllers || fanZones || stepwiseControllers ||
         profile)
     {
         if constexpr (BMCWEB_REDFISH_OEM_MANAGER_FAN_DATA)
         {
+            BMCWEB_LOG_ERROR("TEST: handlePatchManagerOpenBmc begin");
+
             std::vector<
                 std::pair<std::string, std::optional<nlohmann::json::object_t>>>
                 configuration;
