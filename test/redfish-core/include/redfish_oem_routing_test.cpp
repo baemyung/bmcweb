@@ -3,12 +3,14 @@
 #include "http_request.hpp"
 #include "redfish.hpp"
 #include "sub_request.hpp"
+#include "utils/json_utils.hpp"
 #include "verb.hpp"
 
 #include <boost/beast/http/verb.hpp>
 #include <nlohmann/json.hpp>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -85,7 +87,7 @@ TEST(OemRouter, PatchHandlerWithJsonObject)
             [[maybe_unused]] const std::string& param) {
             callback1Called = true;
 
-            const nlohmann::json::object_t& payload = req.payload();
+            nlohmann::json::object_t payload = req.payload();
             auto oemFooIt = payload.find("OemFoo");
             ASSERT_NE(oemFooIt, payload.end());
             ASSERT_TRUE(oemFooIt->second.is_object());
@@ -93,6 +95,14 @@ TEST(OemRouter, PatchHandlerWithJsonObject)
             auto keyIt = oemFooIt->second.find("OemFooKey");
             ASSERT_NE(keyIt, oemFooIt->second.end());
             EXPECT_EQ(keyIt.value(), "fooValue");
+
+            std::optional<std::string> fooValue;
+            std::optional<std::string> barValue;
+            ASSERT_TRUE(json_util::readJsonObject(
+                payload, asyncResp->res, "OemFoo/OemFooKey", fooValue,
+                "OemBar/OemBarKey", barValue));
+            EXPECT_EQ(fooValue, "fooValue");
+            EXPECT_EQ(barValue, "barValue");
         };
 
     bool callback2Called = false;
@@ -105,7 +115,7 @@ TEST(OemRouter, PatchHandlerWithJsonObject)
             [[maybe_unused]] const std::string& param) {
             callback2Called = true;
 
-            const nlohmann::json::object_t& payload = req.payload();
+            nlohmann::json::object_t payload = req.payload();
             auto oemBarIt = payload.find("OemBar");
             ASSERT_NE(oemBarIt, payload.end());
             ASSERT_TRUE(oemBarIt->second.is_object());
@@ -113,6 +123,11 @@ TEST(OemRouter, PatchHandlerWithJsonObject)
             auto keyIt = oemBarIt->second.find("OemBarKey");
             ASSERT_NE(keyIt, oemBarIt->second.end());
             EXPECT_EQ(keyIt.value(), "barValue");
+
+            // std::optional<std::string> barValue;
+            // ASSERT_TRUE(json_util::readJsonObject(
+            //     payload, asyncResp->res, "OemBar/OemBarKey", barValue));
+            // EXPECT_EQ(barValue, "barValue");
         };
 
     bool standardCalled = false;
