@@ -863,6 +863,7 @@ class MultiAsyncResp : public std::enable_shared_from_this<MultiAsyncResp>
         const std::shared_ptr<std::vector<std::string>>& params,
         const crow::Response& resIn)
     {
+        BMCWEB_LOG_ERROR("TEST: startMultiFragmentHandle BEGIN");
         asyncResp->res.jsonValue = resIn.jsonValue;
         auto multi = std::make_shared<MultiAsyncResp>(asyncResp);
         for (OemBaseRule* fragment : *fragments)
@@ -877,6 +878,10 @@ class MultiAsyncResp : public std::enable_shared_from_this<MultiAsyncResp>
                 BMCWEB_LOG_DEBUG(
                     "Handling fragment rules: setting completion handler on {}",
                     logPtr(&rsp->res));
+
+                BMCWEB_LOG_ERROR(
+                    "TEST:  ADD startMultiFragmentHandle fragmentRule.rule={}",
+                    fragmentRule.rule);
                 std::optional<nlohmann::json::json_pointer> jsonFragmentPtr =
                     json_util::createJsonPointerFromFragment(fragmentRule.rule);
                 if (jsonFragmentPtr)
@@ -886,6 +891,7 @@ class MultiAsyncResp : public std::enable_shared_from_this<MultiAsyncResp>
                 }
             }
         }
+        BMCWEB_LOG_ERROR("TEST: startMultiFragmentHandle END");
     }
 
   private:

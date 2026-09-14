@@ -762,6 +762,11 @@ inline std::optional<nlohmann::json::json_pointer>
     }
 
     std::string_view fragment = input.substr(hashPos + 1);
+
+    BMCWEB_LOG_ERROR(
+        "TEST:ZZZ:YYY: createJsonPointerFromFragment input={}, fragment={}",
+        input, fragment);
+
     return nlohmann::json::json_pointer(std::string(fragment));
 }
 

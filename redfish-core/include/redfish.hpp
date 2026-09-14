@@ -63,11 +63,12 @@ class RedfishService
         }
 
         BMCWEB_LOG_ERROR(
-            "TEST:TEST: CALL handleSubRoute, req.url={}, subreq.url={}",
+            "TEST:TEST: CALLXXXX handleSubRoute, before oemRouter.handle req.url={}, subreq.url={}",
             req.url(), subReq->url());
         oemRouter.handle(subReq, asyncResp);
-        BMCWEB_LOG_ERROR("TEST:TEST:TEST:  handleSubRoute req,url={} END",
-                         req.url());
+        BMCWEB_LOG_ERROR(
+            "TEST:TEST:TEST: CALLXXXX  handleSubRoute after oemRouter.handle req,url={} END",
+            req.url());
     }
 
     OemRouter oemRouter;

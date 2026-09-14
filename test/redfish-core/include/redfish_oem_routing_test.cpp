@@ -33,6 +33,7 @@ TEST(OemRouter, FragmentRoutes)
     bool oemCalled = false;
     auto oemCallback = [&oemCalled](const SubRequest&,
                                     const std::shared_ptr<bmcweb::AsyncResp>&,
+                                    std::string_view,
                                     const std::string& bar) {
         oemCalled = true;
         EXPECT_EQ(bar, "bar");
@@ -84,6 +85,7 @@ TEST(OemRouter, PatchHandlerWithJsonObject)
             const SubRequest& req,
             [[maybe_unused]] const std::shared_ptr<bmcweb::AsyncResp>&
                 asyncResp,
+                std::string_view,
             [[maybe_unused]] const std::string& param) {
             callback1Called = true;
 
@@ -112,6 +114,7 @@ TEST(OemRouter, PatchHandlerWithJsonObject)
             const SubRequest& req,
             [[maybe_unused]] const std::shared_ptr<bmcweb::AsyncResp>&
                 asyncResp,
+                 std::string_view,
             [[maybe_unused]] const std::string& param) {
             callback2Called = true;
 

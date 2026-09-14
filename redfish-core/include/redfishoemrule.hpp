@@ -17,7 +17,10 @@ namespace redfish
 class OemBaseRule
 {
   public:
-    explicit OemBaseRule(std::string_view thisRule) : rule(thisRule) {}
+    explicit OemBaseRule(std::string_view thisRule) : rule(thisRule)
+    {
+        BMCWEB_LOG_ERROR("TEST:TEST:TEST: OemBaseRule CTOR rule={}", rule);
+    }
     virtual ~OemBaseRule() = default;
     OemBaseRule(const OemBaseRule&) = delete;
     OemBaseRule(OemBaseRule&&) = delete;
@@ -53,15 +56,15 @@ class OemRule : public OemBaseRule
     template <typename Func>
     void operator()(Func&& f)
     {
-        static_assert(
-            std::is_invocable_v<Func, SubRequest,
-                                std::shared_ptr<bmcweb::AsyncResp>&, Args...>,
-            "Handler type is mismatched with URL parameters");
+        static_assert(std::is_invocable_v<Func, SubRequest,
+                                          std::shared_ptr<bmcweb::AsyncResp>&,
+                                          std::string_view, Args...>,
+                      "Handler type is mismatched with URL parameters");
         static_assert(
             std::is_same_v<
                 void, std::invoke_result_t<Func, SubRequest,
                                            std::shared_ptr<bmcweb::AsyncResp>&,
-                                           Args...>>,
+                                           std::string_view, Args...>>,
             "Handler function with response argument should have void return type");
 
         handler = std::forward<Func>(f);
@@ -78,41 +81,46 @@ class OemRule : public OemBaseRule
         }
 
         BMCWEB_LOG_ERROR(
-            "TEST: redishoemrule handle() Args.count={}, rule={}, subreq.url={}, parms={}",
-            sizeof...(Args),
-            rule, req.url(), parmlist);
+            "TEST: XXX::ZZZ:: redishoemrule handle() Args.count={}, rule={}, req.url={}, parms={}",
+            sizeof...(Args), rule, req.url(), parmlist);
+
+        std::string oemKey = rule;
+        BMCWEB_LOG_ERROR("TEST:XXXXXXXXX:  redfishoemrule handle oemKey={}",
+                         oemKey);
 
         if constexpr (sizeof...(Args) == 0)
         {
-            handler(req, asyncResp);
+            handler(req, asyncResp, oemKey);
         }
         else if constexpr (sizeof...(Args) == 1)
         {
-            handler(req, asyncResp, params[0]);
+            handler(req, asyncResp, oemKey, params[0]);
         }
         else if constexpr (sizeof...(Args) == 2)
         {
-            handler(req, asyncResp, params[0], params[1]);
+            handler(req, asyncResp, oemKey, params[0], params[1]);
         }
         else if constexpr (sizeof...(Args) == 3)
         {
-            handler(req, asyncResp, params[0], params[1], params[2]);
+            handler(req, asyncResp, oemKey, params[0], params[1], params[2]);
         }
         else if constexpr (sizeof...(Args) == 4)
         {
-            handler(req, asyncResp, params[0], params[1], params[2], params[3]);
+            handler(req, asyncResp, oemKey, params[0], params[1], params[2],
+                    params[3]);
         }
         else if constexpr (sizeof...(Args) == 5)
         {
-            handler(req, asyncResp, params[0], params[1], params[2], params[3],
-                    params[4]);
+            handler(req, asyncResp, oemKey, params[0], params[1], params[2],
+                    params[3], params[4]);
         }
         static_assert(sizeof...(Args) <= 5, "More args than are supported");
     }
 
   private:
     std::function<void(const SubRequest&,
-                       const std::shared_ptr<bmcweb::AsyncResp>&, Args...)>
+                       const std::shared_ptr<bmcweb::AsyncResp>&,
+                       std::string_view oemKey, Args...)>
         handler;
 };
 } // namespace redfish

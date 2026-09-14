@@ -1562,7 +1562,7 @@ struct SetPIDValues : std::enable_shared_from_this<SetPIDValues>
 inline void handleGetManagerOpenBmc(
     const SubRequest& /*req*/,
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& /*managerId*/)
+    std::string_view /*oemKey*/, const std::string& /*managerId*/)
 {
     // Default OEM data
     nlohmann::json& oemOpenbmc = asyncResp->res.jsonValue;
@@ -1585,9 +1585,13 @@ inline void handleGetManagerOpenBmc(
 }
 
 inline void handlePatchManagerOpenBmc(
-    const SubRequest& req, const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
-    const std::string& /*managerId*/)
+    std::string_view oemSubKey, const SubRequest& req,
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    std::string_view oemKey, const std::string& /*managerId*/)
 {
+    BMCWEB_LOG_ERROR("TEST: handlePatchManagerOpenBmc oemSubKey={}, oemKey={}",
+                     oemSubKey, oemKey);
+
     if constexpr (BMCWEB_REDFISH_OEM_MANAGER_FAN_DATA)
     {
         BMCWEB_LOG_ERROR(
@@ -1663,7 +1667,8 @@ inline void requestRoutesOpenBmcManager(RedfishService& service)
         service, HttpVerb::Get)(handleGetManagerOpenBmc);
 
     REDFISH_SUB_ROUTE<"/redfish/v1/Managers/<str>/#/Oem/OpenBmc">(
-        service, HttpVerb::Patch)(handlePatchManagerOpenBmc);
+        service,
+        HttpVerb::Patch)(std::bind_front(handlePatchManagerOpenBmc, "OpenBmc"));
 }
 
 } // namespace redfish
