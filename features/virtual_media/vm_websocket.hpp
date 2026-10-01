@@ -116,11 +116,12 @@ class Handler : public std::enable_shared_from_this<Handler>
         doingWrite = true;
         pipeIn.async_write_some(
             inputBuffer.data(),
-            [this, self(shared_from_this())](const boost::beast::error_code& ec,
-                                             std::size_t bytesWritten) {
+            // ast-grep-ignore: long-lambda
+            [self = shared_from_this()](const boost::beast::error_code& ec,
+                                        std::size_t bytesWritten) {
                 BMCWEB_LOG_DEBUG("Wrote {}bytes", bytesWritten);
-                doingWrite = false;
-                inputBuffer.consume(bytesWritten);
+                self->doingWrite = false;
+                self->inputBuffer.consume(bytesWritten);
 
                 if (session == nullptr)
                 {
@@ -137,7 +138,7 @@ class Handler : public std::enable_shared_from_this<Handler>
                     BMCWEB_LOG_ERROR("Error in VM socket write {}", ec);
                     return;
                 }
-                doWrite();
+                self->doWrite();
             });
     }
 
@@ -147,8 +148,9 @@ class Handler : public std::enable_shared_from_this<Handler>
 
         pipeOut.async_read_some(
             outputBuffer.prepare(bytes),
-            [this, self(shared_from_this())](
-                const boost::system::error_code& ec, std::size_t bytesRead) {
+            // ast-grep-ignore: long-lambda
+            [self = shared_from_this()](const boost::system::error_code& ec,
+                                        std::size_t bytesRead) {
                 BMCWEB_LOG_DEBUG("Read done.  Read {} bytes", bytesRead);
                 if (ec)
                 {
@@ -164,14 +166,14 @@ class Handler : public std::enable_shared_from_this<Handler>
                     return;
                 }
 
-                outputBuffer.commit(bytesRead);
+                self->outputBuffer.commit(bytesRead);
                 std::string_view payload(
-                    static_cast<const char*>(outputBuffer.data().data()),
+                    static_cast<const char*>(self->outputBuffer.data().data()),
                     bytesRead);
                 session->sendBinary(payload);
-                outputBuffer.consume(bytesRead);
+                self->outputBuffer.consume(bytesRead);
 
-                doRead();
+                self->doRead();
             });
     }
 
