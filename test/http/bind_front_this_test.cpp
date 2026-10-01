@@ -43,6 +43,16 @@
 //                   — shows that the raw `this` becomes dangling the moment
 //                     the functor (the sole shared_ptr holder) is destroyed,
 //                     while the safe functor would prevent that destruction.
+//  4. UnsafePattern_DoubleCompletion
+//                   — models the production crash observed in http_client.hpp:
+//                     two queued functors (simulating two async completions on
+//                     the same stream) both target the same raw `this` and
+//                     share mutable state.  The first invocation modifies that
+//                     state (nulls the callback); the second invocation then
+//                     calls the now-null callback → std::bad_function_call.
+//                     Because both functors go through raw `this` rather than
+//                     a single shared_ptr call target, there is no ownership
+//                     token that would serialise or prevent the second call.
 
 #include <functional>
 #include <memory>
@@ -61,6 +71,14 @@ struct AsyncWorker : std::enable_shared_from_this<AsyncWorker>
     // Tracks whether the destructor has been called.
     bool& destroyed;
     int result = 0;
+
+    // Models ConnectionInfo::callback — mutable shared state accessed by both
+    // the async completion handler and by the pool-management path (sendNext).
+    std::function<void()> callback;
+
+    // Set to true by onCompletionUnsafe/onCompletionSafe when callback is null.
+    // Lets tests assert on the null-callback condition without crashing.
+    bool callbackWasNull = false;
 
     explicit AsyncWorker(bool& destroyedFlag) : destroyed(destroyedFlag) {}
     AsyncWorker(const AsyncWorker&) = delete;
@@ -93,6 +111,41 @@ struct AsyncWorker : std::enable_shared_from_this<AsyncWorker>
     }
 
     // -----------------------------------------------------------------------
+    // Models ConnectionInfo::afterRead / recvMessage.
+    // Mirrors the production fix (commit 1b196a8): guards the call with
+    // `if (callback)` so a null callback does not crash.  Records whether
+    // it was null at the time of invocation so tests can assert on it.
+    // Unsafe variant: `this` is the raw call target.
+    // -----------------------------------------------------------------------
+    void onCompletionUnsafe(const std::shared_ptr<AsyncWorker>& /*self*/)
+    {
+        if (callback)
+        {
+            callback();
+        }
+        else
+        {
+            callbackWasNull = true;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Models ConnectionInfo::afterRead — safe variant for contrast.
+    // shared_from_this() is the call target; no leading shared_ptr param.
+    // -----------------------------------------------------------------------
+    void onCompletionSafe()
+    {
+        if (callback)
+        {
+            callback();
+        }
+        else
+        {
+            callbackWasNull = true;
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Builds the SAFE functor from inside a member function.
     // shared_from_this() is the *call target* — the shared_ptr is stored
     // in the functor and used to dereference the object on invocation.
@@ -119,6 +172,28 @@ struct AsyncWorker : std::enable_shared_from_this<AsyncWorker>
         return std::bind_front(&AsyncWorker::unsafeCallback,
                                this, // raw pointer — no ownership
                                shared_from_this()); // kept as method parameter
+    }
+
+    // -----------------------------------------------------------------------
+    // Builds a completion functor that models the unsafe async pattern:
+    //   bind_front(&onCompletionUnsafe, this, shared_from_this())
+    // Two copies of this functor simulate two queued async completions on the
+    // same stream (e.g. ssl_error + stream_truncated arriving back-to-back).
+    // -----------------------------------------------------------------------
+    std::function<void()> makeUnsafeCompletionFunctor()
+    {
+        return std::bind_front(&AsyncWorker::onCompletionUnsafe, this,
+                               shared_from_this());
+    }
+
+    // -----------------------------------------------------------------------
+    // Builds a completion functor that models the safe async pattern:
+    //   bind_front(&onCompletionSafe, shared_from_this())
+    // -----------------------------------------------------------------------
+    std::function<void()> makeSafeCompletionFunctor()
+    {
+        return std::bind_front(&AsyncWorker::onCompletionSafe,
+                               shared_from_this());
     }
 };
 
@@ -283,6 +358,158 @@ TEST(BindFrontThisPattern, CallbackSignature_SafeHasNoLeadingSharedPtr)
 
     unsafeFn(15);
     EXPECT_EQ(obj->result, 30);
+}
+
+// ============================================================================
+// Test 5 — Unsafe pattern: double-completion corrupts shared mutable state
+// ============================================================================
+//
+// Models the production crash observed in http_client.hpp (commit 1b196a8):
+//
+//   recvMessage() posts:  async_read(..., bind_front(&afterRead, this, sft()))
+//
+// Under certain SSL error conditions the underlying stream delivers TWO
+// completion events for that single async_read (e.g. asio.ssl error followed
+// immediately by stream_truncated).  In single-threaded Boost.Asio these two
+// completions are queued and dispatched sequentially — one after the other —
+// each invoking afterRead through the same raw `this`.
+//
+// The first invocation succeeds and triggers sendNext(), which sets
+//   conn->callback = nullptr
+// to allow the response handler (which may hold a shared_ptr to an AsyncResp)
+// to be released.
+//
+// The second invocation then reaches:
+//   callback(parser->keep_alive(), connId, res)
+// where callback is now null.  In production this throws std::bad_function_call
+// (or SIGSEGV depending on platform/sanitizer settings) → process terminates.
+//
+// The production fix (commit 1b196a8) adds `if (callback)` before every call
+// site — mirrored here in onCompletionUnsafe so the test does not crash.
+// The test instead asserts that the second completion observes a null callback,
+// which is the invariant the production fix relies on.
+//
+// The unsafe pattern is the enabler: because `this` is the raw call target,
+// there is no single ownership token representing "the active async operation".
+// Two independent functors can both be queued against the same object with no
+// compile-time or run-time guard preventing the second from observing state
+// already mutated by the first.
+//
+// The safe pattern does NOT prevent the double-completion either — two
+// shared_ptr-targeted functors would still both fire.  But it removes the
+// spurious `const shared_ptr<Self>&` parameter that gives a false sense of
+// ownership, making the real hazard (shared mutable state with no serialisation
+// guard) easier to see and reason about.
+//
+TEST(BindFrontThisPattern, UnsafePattern_DoubleCompletion_NullsCallback)
+{
+    bool destroyed = false;
+    auto obj = std::make_shared<AsyncWorker>(destroyed);
+
+    // Keep a non-owning observer and a weak_ptr before dropping the
+    // external shared_ptr, so we can inspect the object afterwards.
+    AsyncWorker* raw = obj.get();
+    std::weak_ptr<AsyncWorker> weak = obj;
+
+    // Set up the shared mutable state — models ConnectionInfo::callback.
+    // The first completion should invoke it; the second should find it null.
+    // Capture weak_ptr rather than the local shared_ptr so the lambda does
+    // not dangle after obj.reset() below.
+    int callCount = 0;
+    obj->callback = [&callCount, weak]() {
+        callCount++;
+        // Models sendNext(): null out the callback after the first successful
+        // completion so the response handler (AsyncResp) can be released.
+        if (auto self = weak.lock())
+        {
+            self->callback = nullptr;
+        }
+    };
+
+    // Simulate two async completion events queued for the same async_read,
+    // each carrying its own functor built with the unsafe pattern.
+    // In production these arrive as: ssl_error → stream_truncated.
+    std::function<void()> completion1 = obj->makeUnsafeCompletionFunctor();
+    std::function<void()> completion2 = obj->makeUnsafeCompletionFunctor();
+
+    // Drop the external reference — object stays alive via the two bound
+    // shared_ptr copies inside the functors, exactly as in production where
+    // the ConnectionPool holds the shared_ptr but the async op also holds one.
+    obj.reset();
+    EXPECT_FALSE(destroyed) << "Object must survive: two functors hold it";
+
+    // First completion fires — callback is invoked and then nulled.
+    completion1();
+    EXPECT_EQ(callCount, 1) << "First completion must invoke callback once";
+    EXPECT_FALSE(raw->callbackWasNull)
+        << "First completion must have found callback non-null";
+
+    // Second completion fires — callback is now null.
+    // In production this is the crash point (std::bad_function_call / SIGSEGV).
+    // The `if (callback)` guard in onCompletionUnsafe — mirroring commit
+    // 1b196a8 — prevents the crash here; callbackWasNull is set instead.
+    completion2();
+    EXPECT_EQ(callCount, 1)
+        << "Second completion must NOT invoke callback again";
+    EXPECT_TRUE(raw->callbackWasNull)
+        << "Second completion must have observed a null callback";
+}
+
+// ============================================================================
+// Test 6 — Safe pattern: double-completion with shared mutable state
+// ============================================================================
+//
+// Demonstrates that switching to the safe pattern alone does NOT prevent the
+// double-completion from reaching the null callback — the same null-callback
+// condition occurs.
+//
+// The safe pattern removes the misleading `const shared_ptr<Self>&` parameter
+// and makes ownership explicit, but the real fix for double-completion is a
+// guard at the call site (e.g. `if (callback) { callback(...); }`).
+//
+// This test documents that truth: safe functor construction and null-checking
+// the callback are two independent, complementary fixes.
+//
+TEST(BindFrontThisPattern, SafePattern_DoubleCompletion_StillNullsCallback)
+{
+    bool destroyed = false;
+    auto obj = std::make_shared<AsyncWorker>(destroyed);
+
+    AsyncWorker* raw = obj.get();
+    std::weak_ptr<AsyncWorker> weak = obj;
+
+    int callCount = 0;
+    obj->callback = [&callCount, weak]() {
+        callCount++;
+        // Same sendNext()-style null as in Test 5.
+        if (auto self = weak.lock())
+        {
+            self->callback = nullptr;
+        }
+    };
+
+    // Two functors built with the SAFE pattern.
+    std::function<void()> completion1 = obj->makeSafeCompletionFunctor();
+    std::function<void()> completion2 = obj->makeSafeCompletionFunctor();
+
+    obj.reset();
+    EXPECT_FALSE(destroyed) << "Object must survive: two functors hold it";
+
+    // First completion — callback fires and is nulled.
+    completion1();
+    EXPECT_EQ(callCount, 1);
+    EXPECT_FALSE(raw->callbackWasNull)
+        << "First completion must have found callback non-null";
+
+    // Second completion — callback is null; the `if (callback)` guard skips
+    // the call.  Safe pattern and unsafe pattern behave identically here:
+    // both require the explicit null-check; neither prevents the double-fire.
+    completion2();
+    EXPECT_EQ(callCount, 1)
+        << "Second completion must NOT invoke callback again; "
+           "safe functor alone does not guard against double-completion";
+    EXPECT_TRUE(raw->callbackWasNull)
+        << "Second completion must have observed a null callback";
 }
 
 } // anonymous namespace
