@@ -175,7 +175,7 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         {
             resolver.async_resolve(
                 host.encoded_host_address(), host.port(),
-                std::bind_front(&ConnectionInfo::afterResolve, this,
+                std::bind_front(&ConnectionInfo::afterResolve,
                                 shared_from_this()));
 
             return;
@@ -195,11 +195,10 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         boost::asio::ip::tcp::endpoint end(addr, host.port_number());
         Resolver::results_type ip = Resolver::results_type::create(
             end, host.host_address(), host.port());
-        afterResolve(shared_from_this(), boost::system::error_code(), ip);
+        afterResolve(boost::system::error_code(), ip);
     }
 
-    void afterResolve(const std::shared_ptr<ConnectionInfo>& /*self*/,
-                      const boost::system::error_code& ec,
+    void afterResolve(const boost::system::error_code& ec,
                       const Resolver::results_type& endpointList)
     {
         if (ec || (endpointList.empty()))
@@ -307,20 +306,19 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         {
             boost::beast::http::async_write(
                 *sslConn, req,
-                std::bind_front(&ConnectionInfo::afterWrite, this,
+                std::bind_front(&ConnectionInfo::afterWrite,
                                 shared_from_this()));
         }
         else
         {
             boost::beast::http::async_write(
                 conn, req,
-                std::bind_front(&ConnectionInfo::afterWrite, this,
+                std::bind_front(&ConnectionInfo::afterWrite,
                                 shared_from_this()));
         }
     }
 
-    void afterWrite(const std::shared_ptr<ConnectionInfo>& /*self*/,
-                    const boost::beast::error_code& ec, size_t bytesTransferred)
+    void afterWrite(const boost::beast::error_code& ec, size_t bytesTransferred)
     {
         // The operation already timed out.  We don't want do continue down
         // this branch
@@ -359,20 +357,19 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         {
             boost::beast::http::async_read(
                 *sslConn, buffer, thisParser,
-                std::bind_front(&ConnectionInfo::afterRead, this,
+                std::bind_front(&ConnectionInfo::afterRead,
                                 shared_from_this()));
         }
         else
         {
             boost::beast::http::async_read(
                 conn, buffer, thisParser,
-                std::bind_front(&ConnectionInfo::afterRead, this,
+                std::bind_front(&ConnectionInfo::afterRead,
                                 shared_from_this()));
         }
     }
 
-    void afterRead(const std::shared_ptr<ConnectionInfo>& /*self*/,
-                   const boost::beast::error_code& ec,
+    void afterRead(const boost::beast::error_code& ec,
                    const std::size_t bytesTransferred)
     {
         // The operation already timed out.  We don't want do continue down
@@ -505,12 +502,11 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         BMCWEB_LOG_DEBUG("Attempt retry after {} seconds. RetryCount = {}",
                          connPolicy->retryIntervalSecs.count(), retryCount);
         timer.expires_after(connPolicy->retryIntervalSecs);
-        timer.async_wait(std::bind_front(&ConnectionInfo::onTimerDone, this,
-                                         shared_from_this()));
+        timer.async_wait(
+            std::bind_front(&ConnectionInfo::onTimerDone, shared_from_this()));
     }
 
-    void onTimerDone(const std::shared_ptr<ConnectionInfo>& /*self*/,
-                     const boost::system::error_code& ec)
+    void onTimerDone(const boost::system::error_code& ec)
     {
         if (ec == boost::asio::error::operation_aborted)
         {
@@ -574,13 +570,11 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
             return;
         }
 
-        sslConn->async_shutdown(
-            std::bind_front(&ConnectionInfo::afterSslShutdown, this,
-                            shared_from_this(), retry));
+        sslConn->async_shutdown(std::bind_front(
+            &ConnectionInfo::afterSslShutdown, shared_from_this(), retry));
     }
 
-    void afterSslShutdown(const std::shared_ptr<ConnectionInfo>& /*self*/,
-                          bool retry, const boost::system::error_code& ec)
+    void afterSslShutdown(bool retry, const boost::system::error_code& ec)
     {
         if (ec)
         {
