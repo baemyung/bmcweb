@@ -58,14 +58,12 @@ class Subscription : public std::enable_shared_from_this<Subscription>
     ~Subscription() = default;
 
     // callback for subscription sendData
-    void resHandler(const std::shared_ptr<Subscription>& /*self*/,
-                    const crow::Response& res);
+    void resHandler(const crow::Response& res);
 
     void sendHeartbeatEvent();
     void scheduleNextHeartbeatEvent();
     void heartbeatParametersChanged();
-    void onHbTimeout(const std::weak_ptr<Subscription>& weakSelf,
-                     const boost::system::error_code& ec);
+    void onHbTimeout(const boost::system::error_code& ec);
 
     bool sendEventToSubscriber(uint64_t eventId, std::string&& msg);
 

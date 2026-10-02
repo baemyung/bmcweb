@@ -60,8 +60,7 @@ Subscription::Subscription(crow::sse_socket::Connection& connIn) :
 {}
 
 // callback for subscription sendData
-void Subscription::resHandler(const std::shared_ptr<Subscription>& /*self*/,
-                              const crow::Response& res)
+void Subscription::resHandler(const crow::Response& res)
 {
     BMCWEB_LOG_DEBUG("Response handled with return code: {}", res.resultInt());
 
@@ -117,8 +116,10 @@ void Subscription::sendHeartbeatEvent()
 void Subscription::scheduleNextHeartbeatEvent()
 {
     hbTimer.expires_after(std::chrono::minutes(userSub->hbIntervalMinutes));
-    hbTimer.async_wait(
-        std::bind_front(&Subscription::onHbTimeout, this, weak_from_this()));
+    std::shared_ptr<Subscription> self = shared_from_this();
+    hbTimer.async_wait([self](const boost::system::error_code& ec) {
+        self->onHbTimeout(ec);
+    });
 }
 
 void Subscription::heartbeatParametersChanged()
@@ -131,8 +132,7 @@ void Subscription::heartbeatParametersChanged()
     }
 }
 
-void Subscription::onHbTimeout(const std::weak_ptr<Subscription>& weakSelf,
-                               const boost::system::error_code& ec)
+void Subscription::onHbTimeout(const boost::system::error_code& ec)
 {
     if (ec == boost::asio::error::operation_aborted)
     {
@@ -147,13 +147,6 @@ void Subscription::onHbTimeout(const std::weak_ptr<Subscription>& weakSelf,
     if (ec)
     {
         BMCWEB_LOG_CRITICAL("heartbeat timer async_wait failed: {}", ec);
-        return;
-    }
-
-    std::shared_ptr<Subscription> self = weakSelf.lock();
-    if (!self)
-    {
-        BMCWEB_LOG_CRITICAL("onHbTimeout failed on Subscription");
         return;
     }
 
@@ -184,8 +177,7 @@ bool Subscription::sendEventToSubscriber(uint64_t eventId, std::string&& msg)
             static_cast<ensuressl::VerifyCertificate>(
                 userSub->verifyCertificate),
             httpHeadersCopy, boost::beast::http::verb::post,
-            std::bind_front(&Subscription::resHandler, this,
-                            shared_from_this()));
+            std::bind_front(&Subscription::resHandler, shared_from_this()));
         return true;
     }
 
