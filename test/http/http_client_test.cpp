@@ -74,6 +74,30 @@
 //  callback path must still be reached safely — which is what this
 //  test observes by asserting no crash.
 //
+// Two independent fixes are required for full protection
+// -------------------------------------------------------
+// Fix 1 (this repo — commit c4156d83):
+//   Use bind_front(&afterRead, shared_from_this()) so that the handler
+//   itself holds the object alive.  The second completion fires on a
+//   live object instead of a dangling pointer, and the null-callback
+//   path is reached without std::bad_function_call.
+//   This fix is necessary regardless of Boost version.
+//
+// Fix 2 (Boost upgrade — 1.83 → 1.84+):
+//   Boost 1.83's ssl/detail/io_op did not atomically cancel the
+//   pending_read_ timer when SSL_ERROR_SSL fired, allowing the timer
+//   cancellation completion to reach call_handler a second time.
+//   This was fixed in Boost 1.84/1.85 via the SSL cancellation overhaul
+//   (base_from_cancellation_state + cancelled() check).  From Boost 1.84
+//   onward a single async_read_some call fires its handler exactly once.
+//   ibm-bmcweb must upgrade Boost to eliminate the double-completion at
+//   its source, not just survive it.
+//
+//   Consequence: building this fixed bmcweb source against Boost 1.83
+//   will still trigger two handler invocations on the described network
+//   event.  Fix 1 prevents the crash, but the handler runs twice.
+//   Building against Boost 1.84+ means the handler runs exactly once.
+//
 // What this test does
 // -------------------
 // One server, one port, two queued requests, keep-alive.
@@ -95,9 +119,11 @@
 //
 // [1] Beast basic_parser stale_parser:
 //     include/boost/beast/http/impl/basic_parser.ipp:91
-// [2] Asio SSL io_op (Boost 1.88+):
-//     include/boost/asio/ssl/detail/io.hpp
-// [3] Beast read_op inner loop:
+// [2] Asio SSL io_op (Boost 1.83, double-completion source):
+//     ssl/detail/io.hpp — pending_read_ timer not cancelled atomically
+// [3] Asio SSL io_op (Boost 1.84+, fixed):
+//     base_from_cancellation_state + cancelled() check prevents second fire
+// [4] Beast read_op inner loop:
 //     include/boost/beast/http/impl/read.hpp
 //
 
