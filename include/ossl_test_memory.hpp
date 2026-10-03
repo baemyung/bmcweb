@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "logging.hpp"
+
 #include <gtest/gtest.h>
 
 extern "C"
