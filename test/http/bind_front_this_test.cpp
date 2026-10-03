@@ -144,7 +144,7 @@ struct AsyncWorker : std::enable_shared_from_this<AsyncWorker>
     //   std::bind_front(&AsyncWorker::unsafeCompletion, this,
     //   shared_from_this())
     // -----------------------------------------------------------------------
-    void unsafeCompletion(const std::shared_ptr<AsyncWorker>& /*self*/)
+    void unsafeCompletion(const std::shared_ptr<AsyncWorker>& /*self*/) const
     {
         if (callback)
         {
