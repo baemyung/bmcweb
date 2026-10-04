@@ -227,12 +227,13 @@ class ConnectionImpl : public Connection
     {
         std::weak_ptr<Connection> weakSelf = weak_from_this();
         timer.expires_after(std::chrono::seconds(30));
-        timer.async_wait(std::bind_front(&ConnectionImpl::onTimeoutCallback,
-                                         this, weak_from_this()));
+        timer.async_wait([weakSelf](const boost::system::error_code& ec) {
+            onTimeoutCallback(weakSelf, ec);
+        });
     }
 
-    void onTimeoutCallback(const std::weak_ptr<Connection>& weakSelf,
-                           const boost::system::error_code& ec)
+    static void onTimeoutCallback(const std::weak_ptr<Connection>& weakSelf,
+                                  const boost::system::error_code& ec)
     {
         std::shared_ptr<Connection> self = weakSelf.lock();
         if (!self)
