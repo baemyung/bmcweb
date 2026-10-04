@@ -15,6 +15,7 @@ srcfiles_unittest = files(
     'http/ssl_double_completion_test.cpp',
     'http/utility_test.cpp',
     'http/verb_test.cpp',
+    'http/weak_from_this_timer_test.cpp',
     'http/zstd_compressor_test.cpp',
     'http/zstd_decompressor_test.cpp',
     'include/async_resolve_test.cpp',
