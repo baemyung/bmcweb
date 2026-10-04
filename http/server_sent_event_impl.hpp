@@ -225,16 +225,18 @@ class ConnectionImpl : public Connection
 
     void startTimeout()
     {
-        std::weak_ptr<Connection> weakSelf = weak_from_this();
         timer.expires_after(std::chrono::seconds(30));
-        timer.async_wait(std::bind_front(&ConnectionImpl::onTimeoutCallback,
-                                         this, weak_from_this()));
+        std::weak_ptr<ConnectionImpl> weak =
+            std::static_pointer_cast<ConnectionImpl>(shared_from_this());
+        timer.async_wait([weak](const boost::system::error_code& ec) {
+            onTimeoutCallback(weak, ec);
+        });
     }
 
-    void onTimeoutCallback(const std::weak_ptr<Connection>& weakSelf,
-                           const boost::system::error_code& ec)
+    static void onTimeoutCallback(const std::weak_ptr<ConnectionImpl>& weak,
+                                  const boost::system::error_code& ec)
     {
-        std::shared_ptr<Connection> self = weakSelf.lock();
+        std::shared_ptr<ConnectionImpl> self = weak.lock();
         if (!self)
         {
             BMCWEB_LOG_CRITICAL("{} Failed to capture connection",
