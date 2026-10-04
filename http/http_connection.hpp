@@ -872,8 +872,8 @@ class Connection :
         timerStarted = false;
     }
 
-    void afterTimerWait(const std::weak_ptr<self_type>& weakSelf,
-                        const boost::system::error_code& ec)
+    static void afterTimerWait(const std::weak_ptr<self_type>& weakSelf,
+                               const boost::system::error_code& ec)
     {
         // Note, we are ignoring other types of errors here;  If the timer
         // failed for any reason, we should still close the connection
@@ -930,10 +930,11 @@ class Connection :
 
         std::chrono::seconds timeout(timeoutDurationSeconds);
 
-        std::weak_ptr<Connection<Adaptor, Handler>> weakSelf = weak_from_this();
         timer.expires_after(timeout);
-        timer.async_wait(std::bind_front(&self_type::afterTimerWait, this,
-                                         weak_from_this()));
+        std::weak_ptr<self_type> weak = weak_from_this();
+        timer.async_wait([weak](const boost::system::error_code& ec) {
+            afterTimerWait(weak, ec);
+        });
 
         timerStarted = true;
         // BMCWEB_LOG_DEBUG("{} timer started", logPtr(this));

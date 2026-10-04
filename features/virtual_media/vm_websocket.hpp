@@ -346,9 +346,16 @@ struct NbdProxyServer : std::enable_shared_from_this<NbdProxyServer>
     void doRead()
     {
         // Trigger async read
-        peerSocket.async_read_some(ux2wsBuf.prepare(nbdBufferSize),
-                                   std::bind_front(&NbdProxyServer::afterRead,
-                                                   this, weak_from_this()));
+        std::weak_ptr<NbdProxyServer> weak = weak_from_this();
+        peerSocket.async_read_some(
+            ux2wsBuf.prepare(nbdBufferSize),
+            [weak](const boost::system::error_code& ec, size_t bytesRead) {
+                std::shared_ptr<NbdProxyServer> self = weak.lock();
+                if (self)
+                {
+                    self->afterRead(weak, ec, bytesRead);
+                }
+            });
     }
 
     static void afterWrite(const std::weak_ptr<NbdProxyServer>& weak,
